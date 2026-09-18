@@ -117,13 +117,28 @@ export async function reservarCama(estudioId, slotId, numeroCama, uid, nombre) {
   });
 }
 
-export async function cancelarCama(estudioId, slotId, numeroCama, uidSolicitante, esAdmin = false) {
+export async function cancelarCama(estudioId, slotId, numeroCama, uidSolicitante, esAdmin = false, limiteHoras = 0) {
   return runTransaction(db, async (tx) => {
     const slotRef = doc(db, 'estudios', estudioId, 'slots', slotId);
     const slotSnap = await tx.get(slotRef);
     if (!slotSnap.exists()) throw new Error('Slot no encontrado');
 
     const slot = slotSnap.data();
+
+    // 🆕 Validar límite de cancelación (solo si NO es admin)
+    if (!esAdmin && limiteHoras > 0) {
+      const fechaSlot = new Date(slot.fecha + 'T' + slot.hora + ':00');
+      const ahora = new Date();
+      const horasRestantes = (fechaSlot - ahora) / (1000 * 60 * 60);
+
+      if (horasRestantes < limiteHoras) {
+        throw new Error(
+          `No podés cancelar con menos de ${limiteHoras} horas de anticipación. ` +
+          `Contactá al estudio para más información.`
+        );
+      }
+    }
+
     const camaIdx = slot.camas.findIndex(c => c.numero === numeroCama);
     if (camaIdx === -1) throw new Error('Cama no existe');
 
@@ -256,9 +271,7 @@ export function CalendarioCamas({
   return (
     <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
 
-      {/* ============================================================ */}
-      {/* HEADER CON NAVEGACIÓN DE SEMANA                                */}
-      {/* ============================================================ */}
+      {/* HEADER CON NAVEGACIÓN DE SEMANA */}
       <div className="flex items-center justify-between gap-2 px-3 py-2 md:px-4 md:py-3 border-b bg-gray-50">
         <button
           onClick={() => onCambiarSemana(-7)}
@@ -281,9 +294,7 @@ export function CalendarioCamas({
         </button>
       </div>
 
-      {/* ============================================================ */}
-      {/* TABLA CON SCROLL HORIZONTAL EN MOBILE                          */}
-      {/* ============================================================ */}
+      {/* TABLA CON SCROLL HORIZONTAL EN MOBILE */}
       <div className="overflow-x-auto">
         <table className="w-full border-collapse min-w-[750px]">
           <thead>
@@ -363,9 +374,7 @@ export function CalendarioCamas({
         </table>
       </div>
 
-      {/* ============================================================ */}
-      {/* LEYENDA                                                       */}
-      {/* ============================================================ */}
+      {/* LEYENDA */}
       <div className="px-3 py-2 md:px-4 border-t bg-gray-50 flex flex-wrap gap-3 md:gap-4 text-[10px] md:text-xs text-gray-600">
         <span className="flex items-center gap-1">
           <span className="w-2.5 h-2.5 md:w-3 md:h-3 rounded border border-gray-300 bg-white inline-block"></span>
@@ -383,6 +392,7 @@ export function CalendarioCamas({
     </div>
   );
 }
+
 // ============================================================
 // PÁGINA: CLASES (alumno)
 // ============================================================
@@ -393,7 +403,6 @@ export function Clases() {
   const [cargando, setCargando] = useState(true);
   const [semana, setSemana] = useState(new Date());
 
-  // ⚡ onSnapshot en tiempo real
   useEffect(() => {
     if (!estudio) return;
     setCargando(true);
@@ -419,7 +428,7 @@ export function Clases() {
     return () => unsub();
   }, [semana, estudio?.id]);
 
-   const reservar = async (slotId, numeroCama) => {
+  const reservar = async (slotId, numeroCama) => {
     setMsg('');
     try {
       await reservarCama(
@@ -432,16 +441,17 @@ export function Clases() {
     } catch (e) { setMsg('⚠️ ' + e.message); }
   };
 
-    const cancelar = async (slotId, numeroCama) => {
+  const cancelar = async (slotId, numeroCama) => {
     setMsg('');
     try {
       await cancelarCama(
         estudio.id, slotId, numeroCama,
         user.uid,
-        miembro?.rol === 'admin' || miembro?.rol === 'instructor'
+        miembro?.rol === 'admin' || miembro?.rol === 'instructor',
+        estudio.limiteCancelacionHoras ?? 0
       );
       setMsg(`✅ Reserva cancelada (cama ${numeroCama})`);
-      recargar(); // 👈 Actualiza el contador de clases al instante
+      recargar();
     } catch (e) { setMsg('⚠️ ' + e.message); }
   };
 
@@ -454,10 +464,10 @@ export function Clases() {
   if (!estudio) return <div className="p-8">Cargando estudio...</div>;
 
   return (
-    <div className="max-w-[1400px] mx-auto p-6">
+    <div className="max-w-[1400px] mx-auto p-4 md:p-6">
       <div className="flex justify-between items-center mb-4">
         <div>
-          <h1 className="text-2xl font-bold">Agenda semanal</h1>
+          <h1 className="text-xl md:text-2xl font-bold">Agenda semanal</h1>
           <p className="text-sm text-gray-500">
             {miembro?.nombre} · {miembro?.clasesRestantes ?? 0} clases disponibles
           </p>
@@ -511,7 +521,6 @@ export function Admin() {
     horas: [...HORAS]
   });
 
-  // ⚡ onSnapshot en tiempo real
   useEffect(() => {
     if (!estudio) return;
     setCargando(true);
@@ -648,10 +657,10 @@ export function Admin() {
   if (!estudio) return <div className="p-8">Cargando estudio...</div>;
 
   return (
-    <div className="max-w-[1400px] mx-auto p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">Panel Admin</h1>
-        <div className="flex gap-2">
+    <div className="max-w-[1400px] mx-auto p-4 md:p-6">
+      <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+        <h1 className="text-xl md:text-2xl font-bold">Panel Admin</h1>
+        <div className="flex gap-2 flex-wrap">
           <button onClick={() => setSemana(new Date())}
             className="text-sm px-3 py-1 rounded border bg-white hover:bg-gray-100">
             Hoy
@@ -716,8 +725,8 @@ export function Admin() {
 
       {/* MODAL CREAR SLOT */}
       {modal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96 space-y-4">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-sm space-y-4">
             <h3 className="text-lg font-bold">Crear slot</h3>
             <p className="text-sm text-gray-500">📅 {modal.fecha} · 🕐 {modal.hora}</p>
             <div>
@@ -791,7 +800,7 @@ export function Admin() {
                   );
                 })}
               </div>
-              <div className="flex gap-3 mt-2 text-xs">
+              <div className="flex gap-3 mt-2 text-xs flex-wrap">
                 <button type="button" onClick={() => setFormSemana({ ...formSemana, dias: [1,2,3,4,5] })} className="text-purple-600 hover:underline">Lunes a viernes</button>
                 <button type="button" onClick={() => setFormSemana({ ...formSemana, dias: [6,7] })} className="text-purple-600 hover:underline">Fin de semana</button>
                 <button type="button" onClick={() => setFormSemana({ ...formSemana, dias: [1,2,3,4,5,6,7] })} className="text-purple-600 hover:underline">Todos</button>
@@ -821,7 +830,7 @@ export function Admin() {
                   );
                 })}
               </div>
-              <div className="flex gap-3 mt-2 text-xs">
+              <div className="flex gap-3 mt-2 text-xs flex-wrap">
                 <button type="button" onClick={() => setFormSemana({ ...formSemana, horas: [...HORAS] })} className="text-purple-600 hover:underline">Todos</button>
                 <button type="button" onClick={() => setFormSemana({ ...formSemana, horas: ['08:00','09:00','10:00','11:00','12:00'] })} className="text-purple-600 hover:underline">Mañana</button>
                 <button type="button" onClick={() => setFormSemana({ ...formSemana, horas: ['14:00','15:00','16:00','17:00','18:00','19:00','20:00'] })} className="text-purple-600 hover:underline">Tarde</button>
@@ -1018,7 +1027,10 @@ export function MisReservas() {
     if (!confirm('¿Cancelar esta reserva?')) return;
     setMsg('');
     try {
-      await cancelarCama(estudio.id, slotId, numeroCama, user.uid, false);
+      await cancelarCama(
+        estudio.id, slotId, numeroCama, user.uid, false,
+        estudio.limiteCancelacionHoras ?? 0
+      );
       setMsg('✅ Reserva cancelada');
       recargar();
       cargar();
@@ -1028,9 +1040,9 @@ export function MisReservas() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto p-6">
+    <div className="max-w-3xl mx-auto p-4 md:p-6">
       <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">Mis reservas</h1>
+        <h1 className="text-xl md:text-2xl font-bold">Mis reservas</h1>
         <button onClick={cargar}
           className="text-sm px-3 py-1 rounded border bg-white hover:bg-gray-100">
           🔄 Recargar

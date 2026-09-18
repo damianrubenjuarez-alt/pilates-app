@@ -24,13 +24,13 @@ const slugRef     = (slug) => doc(db, 'slugs', slug);
 function esErrorSlugDuplicado(err) {
   return (
     err?.code === 'already-exists' ||
-    err?.code === 6 || // código gRPC de ALREADY_EXISTS
+    err?.code === 6 ||
     err?.message?.toLowerCase().includes('already exists')
   );
 }
 
 // ============================================================
-// CREAR ESTUDIO SIN ADMIN (con reintentos por concurrencia)
+// CREAR ESTUDIO SIN ADMIN (con reintentos)
 // ============================================================
 export async function crearEstudioSinAdmin({ nombre, creadoPor, registroAbierto = false }) {
   if (!nombre?.trim()) throw new Error('El nombre es obligatorio');
@@ -62,6 +62,7 @@ export async function crearEstudioSinAdmin({ nombre, creadoPor, registroAbierto 
       plan: 'trial',
       planVencimiento: trialHasta,
       registroAbierto,
+      limiteCancelacionHoras: 0,
       branding: {
         logoUrl: null,
         colorPrimario: '#9333ea',
@@ -79,12 +80,9 @@ export async function crearEstudioSinAdmin({ nombre, creadoPor, registroAbierto 
       return { estudioId, slug };
     } catch (err) {
       if (esErrorSlugDuplicado(err)) {
-        // Otro usuario tomó el slug entre la verificación y la escritura.
-        // Reintentamos con un slug nuevo.
         ultimoError = err;
         continue;
       }
-      // Otro tipo de error: no reintentamos
       throw err;
     }
   }
@@ -131,6 +129,7 @@ export async function crearEstudio({
       plan: 'trial',
       planVencimiento: trialHasta,
       registroAbierto,
+      limiteCancelacionHoras: 0,
       branding: {
         logoUrl: null,
         colorPrimario: '#9333ea',
@@ -219,7 +218,7 @@ export async function listarMiembros(estudioId, { rol = null } = {}) {
 }
 
 // ============================================================
-// UNIR USUARIO A ESTUDIO (Versión para usar DENTRO de una transacción)
+// UNIR USUARIO A ESTUDIO (transacción)
 // ============================================================
 export async function unirUsuarioAEstudioTx(tx, estudioId, uid, {
   nombre, email, telefono = '', rol = 'alumno', clasesIniciales = 0
@@ -265,9 +264,6 @@ export async function unirUsuarioAEstudioTx(tx, estudioId, uid, {
   return { id: uid, ...nuevoMiembro };
 }
 
-// ============================================================
-// UNIR USUARIO A ESTUDIO (Versión original, ahora usa transacción)
-// ============================================================
 export async function unirUsuarioAEstudio(estudioId, uid, datos) {
   return runTransaction(db, async (tx) => {
     return unirUsuarioAEstudioTx(tx, estudioId, uid, datos);
@@ -296,8 +292,9 @@ export async function eliminarMiembro(estudioId, uid) {
   }, { merge: true });
   await batch.commit();
 }
+
 // ============================================================
-// SUMAR CLASES (atómico, con transacción)
+// SUMAR CLASES (atómico)
 // ============================================================
 export async function sumarClasesMiembro(estudioId, uid, cantidad) {
   if (typeof cantidad !== 'number' || cantidad === 0) {
@@ -324,6 +321,7 @@ export async function sumarClasesMiembro(estudioId, uid, cantidad) {
     return { clasesRestantes: nuevo, delta: cantidad };
   });
 }
+
 // ============================================================
 // USUARIO GLOBAL (índice)
 // ============================================================
@@ -380,6 +378,23 @@ export async function actualizarRegistroAbierto(estudioId, registroAbierto) {
   await updateDoc(estudioRef(estudioId), { registroAbierto: !!registroAbierto });
 }
 
+export async function actualizarLimiteCancelacion(estudioId, horas) {
+  const horasNum = Number(horas);
+  if (isNaN(horasNum) || horasNum < 0 || horasNum > 168) {
+    throw new Error('El límite debe estar entre 0 y 168 horas (7 días)');
+  }
+  await updateDoc(estudioRef(estudioId), {
+    limiteCancelacionHoras: horasNum
+  });
+}
+
+export async function actualizarInfoEstudio(estudioId, { nombre, branding }) {
+  const cambios = {};
+  if (nombre !== undefined) cambios.nombre = nombre.trim();
+  if (branding !== undefined) cambios.branding = branding;
+  await updateDoc(estudioRef(estudioId), cambios);
+}
+
 export async function cambiarPlanEstudio(estudioId, nuevoPlan, meses = 1) {
   const vencimiento = Timestamp.fromDate(
     new Date(Date.now() + meses * 30 * 24 * 60 * 60 * 1000)
@@ -388,15 +403,6 @@ export async function cambiarPlanEstudio(estudioId, nuevoPlan, meses = 1) {
     plan: nuevoPlan,
     planVencimiento: vencimiento
   });
-}
-// ============================================================
-// ACTUALIZAR NOMBRE Y BRANDING
-// ============================================================
-export async function actualizarInfoEstudio(estudioId, { nombre, branding }) {
-  const cambios = {};
-  if (nombre !== undefined) cambios.nombre = nombre.trim();
-  if (branding !== undefined) cambios.branding = branding;
-  await updateDoc(estudioRef(estudioId), cambios);
 }
 
 export function planVigente(estudio) {

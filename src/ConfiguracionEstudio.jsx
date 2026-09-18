@@ -1,8 +1,8 @@
 // src/ConfiguracionEstudio.jsx
 import { useState, useEffect, useRef } from 'react';
 import { useEstudio } from './EstudioContext';
-import { actualizarRegistroAbierto, actualizarInfoEstudio } from './estudios';
-import { Settings, Lock, Globe, Check, AlertCircle, Palette, Type, Image as ImageIcon, Upload } from 'lucide-react';
+import { actualizarRegistroAbierto, actualizarInfoEstudio, actualizarLimiteCancelacion } from './estudios';
+import { Settings, Lock, Globe, Check, AlertCircle, Palette, Type, Image as ImageIcon, Upload, Clock } from 'lucide-react';
 
 export function ConfiguracionEstudio() {
   const { estudio, esAdmin, recargar } = useEstudio();
@@ -16,16 +16,17 @@ export function ConfiguracionEstudio() {
   const [colorPrimario, setColorPrimario] = useState('#9333ea');
   const [colorSecundario, setColorSecundario] = useState('#c084fc');
   const [logoUrl, setLogoUrl] = useState('');
+  const [limiteCancelacion, setLimiteCancelacion] = useState(0);
 
   const fileInputRef = useRef(null);
 
-  // Cargar datos actuales
   useEffect(() => {
     if (!estudio) return;
     setNombre(estudio.nombre || '');
     setColorPrimario(estudio.branding?.colorPrimario || '#9333ea');
     setColorSecundario(estudio.branding?.colorSecundario || '#c084fc');
     setLogoUrl(estudio.branding?.logoUrl || '');
+    setLimiteCancelacion(estudio.limiteCancelacionHoras ?? 0);
   }, [estudio?.id]);
 
   if (!estudio) return <div className="p-8">Cargando estudio...</div>;
@@ -57,7 +58,6 @@ export function ConfiguracionEstudio() {
     setTimeout(() => { setMsg(''); setError(''); }, 4000);
   };
 
-  // Toggle de registro abierto
   const toggleRegistro = async () => {
     setGuardando(true);
     try {
@@ -75,12 +75,23 @@ export function ConfiguracionEstudio() {
     }
   };
 
-  // Subir logo a Cloudinary (unsigned)
+  const guardarLimiteCancelacion = async () => {
+    setGuardando(true);
+    try {
+      await actualizarLimiteCancelacion(estudio.id, limiteCancelacion);
+      mostrarMensaje('✅ Límite de cancelación guardado');
+      recargar();
+    } catch (e) {
+      mostrarMensaje('⚠️ Error al guardar: ' + e.message, true);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
   const handleSubirLogo = async (e) => {
     const archivo = e.target.files?.[0];
     if (!archivo) return;
 
-    // Validaciones
     if (archivo.size > 2 * 1024 * 1024) {
       mostrarMensaje('⚠️ El archivo es muy grande (máximo 2MB)', true);
       return;
@@ -96,44 +107,31 @@ export function ConfiguracionEstudio() {
     setMsg('');
 
     try {
-      // Preparar FormData
       const formData = new FormData();
       formData.append('file', archivo);
       formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET);
       formData.append('folder', `logos/${estudio.id}`);
 
-      // Subir a Cloudinary
       const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
       const response = await fetch(
         `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
-        {
-          method: 'POST',
-          body: formData
-        }
+        { method: 'POST', body: formData }
       );
 
-      if (!response.ok) {
-        throw new Error('Error al subir la imagen');
-      }
+      if (!response.ok) throw new Error('Error al subir la imagen');
 
       const data = await response.json();
-
-      // data.secure_url es la URL HTTPS de la imagen
       setLogoUrl(data.secure_url);
-
       mostrarMensaje('✅ Logo subido. Guardá los cambios para aplicarlo.');
     } catch (err) {
       console.error(err);
       mostrarMensaje('⚠️ Error al subir el logo: ' + err.message, true);
     } finally {
       setSubiendoLogo(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  // Guardar cambios (nombre, colores, logo)
   const guardarCambios = async (e) => {
     e.preventDefault();
     setGuardando(true);
@@ -157,7 +155,6 @@ export function ConfiguracionEstudio() {
 
   return (
     <div className="max-w-3xl mx-auto p-4 md:p-6">
-      {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Settings className="w-6 h-6 text-purple-600" />
@@ -168,7 +165,6 @@ export function ConfiguracionEstudio() {
         </p>
       </div>
 
-      {/* Mensajes */}
       {msg && (
         <div className="mb-4 text-sm bg-green-50 border border-green-200 text-green-800 p-3 rounded-lg flex items-center gap-2">
           <Check className="w-4 h-4" />
@@ -182,9 +178,7 @@ export function ConfiguracionEstudio() {
         </div>
       )}
 
-      {/* ============================================================ */}
-      {/* CARD 1: Registro abierto                                       */}
-      {/* ============================================================ */}
+      {/* CARD 1: Registro abierto */}
       <div className="bg-white border rounded-lg p-5 md:p-6 space-y-4 mb-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
@@ -207,7 +201,6 @@ export function ConfiguracionEstudio() {
             type="button"
             onClick={toggleRegistro}
             disabled={guardando}
-            aria-label={registroAbierto ? 'Desactivar registro abierto' : 'Activar registro abierto'}
             className={`
               relative inline-flex items-center h-7 w-12 rounded-full transition-colors flex-shrink-0
               focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2
@@ -225,16 +218,72 @@ export function ConfiguracionEstudio() {
         </div>
       </div>
 
-      {/* ============================================================ */}
-      {/* CARD 2: Identidad del estudio                                  */}
-      {/* ============================================================ */}
+      {/* CARD 1.5: Límite de cancelación */}
+      <div className="bg-white border rounded-lg p-5 md:p-6 space-y-4 mb-6">
+        <div className="flex items-center gap-2 mb-1">
+          <Clock className="w-5 h-5 text-purple-600" />
+          <h2 className="font-bold text-lg">Límite de cancelación</h2>
+        </div>
+        <p className="text-sm text-gray-600">
+          Definí con cuánta antelación un alumno puede cancelar o modificar su reserva.
+          Pasado ese plazo, solo el admin podrá cancelarla.
+        </p>
+
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <div className="flex items-center gap-2 flex-1">
+            <input
+              type="number"
+              min="0"
+              max="168"
+              value={limiteCancelacion}
+              onChange={(e) => setLimiteCancelacion(Number(e.target.value))}
+              className="w-24 border rounded-lg px-3 py-2 text-center font-mono"
+            />
+            <span className="text-sm text-gray-600">horas antes de la clase</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={guardarLimiteCancelacion}
+            disabled={guardando}
+            className="px-4 py-2 rounded bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 text-sm font-medium"
+          >
+            {guardando ? 'Guardando...' : 'Guardar'}
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-2 text-xs">
+          {[0, 2, 12, 24, 48].map(horas => (
+            <button
+              key={horas}
+              type="button"
+              onClick={() => setLimiteCancelacion(horas)}
+              className={`px-3 py-1 rounded border ${
+                limiteCancelacion === horas
+                  ? 'bg-purple-600 text-white border-purple-600'
+                  : 'bg-white hover:bg-gray-50'
+              }`}
+            >
+              {horas === 0 ? 'Sin límite' : `${horas} horas`}
+            </button>
+          ))}
+        </div>
+
+        <div className="bg-blue-50 border border-blue-200 rounded p-2 text-xs text-blue-800">
+          💡 <strong>Actual:</strong>{' '}
+          {limiteCancelacion === 0
+            ? 'Sin límite (los alumnos pueden cancelar hasta el último momento)'
+            : `Los alumnos pueden cancelar hasta ${limiteCancelacion} horas antes de la clase`}
+        </div>
+      </div>
+
+      {/* CARD 2: Identidad del estudio */}
       <form onSubmit={guardarCambios} className="bg-white border rounded-lg p-5 md:p-6 space-y-5">
         <h2 className="font-bold text-lg flex items-center gap-2">
           <Palette className="w-5 h-5 text-purple-600" />
           Identidad del estudio
         </h2>
 
-        {/* Nombre */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
             <Type className="w-4 h-4 text-gray-400" />
@@ -249,7 +298,6 @@ export function ConfiguracionEstudio() {
           />
         </div>
 
-        {/* Colores */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -292,17 +340,13 @@ export function ConfiguracionEstudio() {
           </div>
         </div>
 
-        {/* Logo */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
             <ImageIcon className="w-4 h-4 text-gray-400" />
             Logo del estudio
           </label>
 
-          {/* Vista previa + botones */}
           <div className="flex flex-col sm:flex-row items-start gap-4 p-3 bg-gray-50 rounded-lg border">
-            
-            {/* Vista previa */}
             <div className="flex-shrink-0">
               {logoUrl ? (
                 <img
@@ -321,7 +365,6 @@ export function ConfiguracionEstudio() {
               )}
             </div>
 
-            {/* Botones */}
             <div className="flex-1 space-y-2">
               <div className="flex gap-2 flex-wrap">
                 <button
@@ -359,7 +402,6 @@ export function ConfiguracionEstudio() {
             </div>
           </div>
 
-          {/* Alternativa: pegar URL */}
           <details className="mt-3">
             <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">
               O pegá una URL externa
@@ -374,7 +416,6 @@ export function ConfiguracionEstudio() {
           </details>
         </div>
 
-        {/* Botón guardar */}
         <div className="flex justify-end pt-2 border-t">
           <button
             type="submit"
@@ -386,7 +427,6 @@ export function ConfiguracionEstudio() {
         </div>
       </form>
 
-      {/* Próximamente */}
       <div className="mt-6 bg-gray-50 border border-dashed rounded-lg p-4 text-center text-gray-500 text-sm">
         🚧 Próximamente: más opciones de personalización.
       </div>
