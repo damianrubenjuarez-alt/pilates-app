@@ -1,16 +1,17 @@
-# React + Vite
+# Pilates App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+SaaS multi-tenant para gestión de estudios de pilates: reservas, agenda, alumnos, pagos online y notificaciones automáticas.
 
-Currently, two official plugins are available:
+## Stack
+- React 19 + Vite 8
+- React Router 7
+- Tailwind CSS 3.4
+- Firebase (Auth + Firestore)
+- EmailJS
+- Deploy: Vercel
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Setup local
+```bash
+npm install
+cp .env.example .env.local  # completar variables
+npm run dev
