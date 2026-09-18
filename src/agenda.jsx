@@ -339,7 +339,7 @@ export function CalendarioCamas({
 // PÁGINA: CLASES (alumno)
 // ============================================================
 export function Clases() {
-  const { estudio, miembro, user } = useEstudio();
+  const { estudio, miembro, user, recargar } = useEstudio();
   const [slots, setSlots] = useState([]);
   const [msg, setMsg] = useState('');
   const [cargando, setCargando] = useState(true);
@@ -371,7 +371,7 @@ export function Clases() {
     return () => unsub();
   }, [semana, estudio?.id]);
 
-  const reservar = async (slotId, numeroCama) => {
+   const reservar = async (slotId, numeroCama) => {
     setMsg('');
     try {
       await reservarCama(
@@ -380,10 +380,11 @@ export function Clases() {
         miembro?.nombre || 'Alumno'
       );
       setMsg(`✅ Cama ${numeroCama} reservada`);
+      recargar();
     } catch (e) { setMsg('⚠️ ' + e.message); }
   };
 
-  const cancelar = async (slotId, numeroCama) => {
+    const cancelar = async (slotId, numeroCama) => {
     setMsg('');
     try {
       await cancelarCama(
@@ -392,6 +393,7 @@ export function Clases() {
         miembro?.rol === 'admin' || miembro?.rol === 'instructor'
       );
       setMsg(`✅ Reserva cancelada (cama ${numeroCama})`);
+      recargar(); // 👈 Actualiza el contador de clases al instante
     } catch (e) { setMsg('⚠️ ' + e.message); }
   };
 
@@ -919,7 +921,7 @@ export function Admin() {
 // PÁGINA: MIS RESERVAS
 // ============================================================
 export function MisReservas() {
-  const { estudio, user } = useEstudio();
+  const { estudio, user, recargar } = useEstudio();
   const [reservas, setReservas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [msg, setMsg] = useState('');
@@ -970,6 +972,7 @@ export function MisReservas() {
     try {
       await cancelarCama(estudio.id, slotId, numeroCama, user.uid, false);
       setMsg('✅ Reserva cancelada');
+      recargar();
       cargar();
     } catch (e) {
       setMsg('⚠️ ' + e.message);
