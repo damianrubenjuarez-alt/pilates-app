@@ -15,6 +15,7 @@ import { LoginAdmin } from './LoginAdmin';
 import { CrearEstudio } from './CrearEstudio';
 import { ConfiguracionEstudio } from './ConfiguracionEstudio';
 import { Recordatorios } from './Recordatorios';
+import { RecuperarPassword } from './RecuperarPassword';
 
 // ============================================================
 // Layout de estudio (Navbar + contenido)
@@ -67,13 +68,14 @@ export default function App() {
           </RutaSuperAdmin>
         } />
 
-        {/* Rutas dentro de un estudio (con slug) */}
+                {/* Rutas dentro de un estudio (con slug) */}
         <Route path="/:slug" element={<LayoutEstudio />}>
           {/* Redirigir el índice del estudio a /clases */}
           <Route index element={<Navigate to="clases" replace />} />
 
           <Route path="login" element={<Login />} />
           <Route path="registro" element={<Registro />} />
+          <Route path="recuperar-password" element={<RecuperarPassword />} />
           <Route path="invitacion/:token" element={<AceptarInvitacion />} />
 
           <Route path="clases" element={

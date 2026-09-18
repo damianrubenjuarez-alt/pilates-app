@@ -60,28 +60,39 @@ export function Login() {
         )}
 
         <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          className="w-full border rounded px-3 py-2"
-        />
-        <input
-          type="password"
-          placeholder="Contraseña"
-          value={pass}
-          onChange={(e) => setPass(e.target.value)}
-          required
-          className="w-full border rounded px-3 py-2"
-        />
-        <button
-          type="submit"
-          className="w-full text-white py-2 rounded hover:opacity-90 transition"
-          style={{ backgroundColor: color }}
-        >
-          Entrar
-        </button>
+  type="email"
+  placeholder="Email"
+  value={email}
+  onChange={(e) => setEmail(e.target.value)}
+  required
+  className="w-full border rounded px-3 py-2"
+/>
+<input
+  type="password"
+  placeholder="Contraseña"
+  value={pass}
+  onChange={(e) => setPass(e.target.value)}
+  required
+  className="w-full border rounded px-3 py-2"
+/>
+
+{/* 👇 NUEVO: enlace de recuperación */}
+<div className="text-right">
+  <Link
+    to={`/${slug}/recuperar-password`}
+    className="text-xs text-gray-500 hover:text-gray-700 hover:underline"
+  >
+    ¿Olvidaste tu contraseña?
+  </Link>
+</div>
+
+<button
+  type="submit"
+  className="w-full text-white py-2 rounded hover:opacity-90 transition"
+  style={{ backgroundColor: color }}
+>
+  Entrar
+</button>
         <button
           type="button"
           onClick={handleGoogle}
