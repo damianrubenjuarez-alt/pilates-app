@@ -194,11 +194,11 @@ function CamasDelSlot({ slot, uid, onReservar, onCancelar }) {
   const libres = slot.camas.filter(c => c.estado === 'libre').length;
 
   return (
-    <div className="space-y-1">
-      <div className="text-[9px] text-gray-500 leading-tight mb-1">
+    <div className="space-y-0.5 md:space-y-1">
+      <div className="text-[8px] md:text-[9px] text-gray-500 leading-tight mb-0.5 md:mb-1 truncate">
         {slot.instructor} · {libres}/{slot.camas.length}
       </div>
-      <div className="grid grid-cols-4 gap-1">
+      <div className="grid grid-cols-4 gap-0.5 md:gap-1">
         {slot.camas.map(cama => {
           const esMia = uid && cama.uid === uid;
           const ocupada = cama.estado === 'ocupada';
@@ -218,7 +218,7 @@ function CamasDelSlot({ slot, uid, onReservar, onCancelar }) {
                 : ocupada ? `Ocupada por ${cama.nombre || 'alguien'}`
                 : `Cama ${cama.numero} libre`
               }
-              className={`w-6 h-6 rounded text-[9px] font-bold flex items-center justify-center transition ${
+              className={`w-5 h-5 md:w-6 md:h-6 rounded text-[8px] md:text-[9px] font-bold flex items-center justify-center transition ${
                 esMia ? 'bg-green-500 text-white hover:bg-green-600 cursor-pointer'
                 : ocupada ? 'bg-gray-400 text-white cursor-not-allowed'
                 : 'bg-white border border-gray-300 text-gray-500 hover:bg-purple-100 hover:border-purple-400 cursor-pointer'
@@ -255,32 +255,64 @@ export function CalendarioCamas({
 
   return (
     <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
-        <button onClick={() => onCambiarSemana(-7)}
-          className="px-3 py-1 rounded border bg-white hover:bg-gray-100 text-sm">
-          ← Semana anterior
+
+      {/* ============================================================ */}
+      {/* HEADER CON NAVEGACIÓN DE SEMANA                                */}
+      {/* ============================================================ */}
+      <div className="flex items-center justify-between gap-2 px-3 py-2 md:px-4 md:py-3 border-b bg-gray-50">
+        <button
+          onClick={() => onCambiarSemana(-7)}
+          className="px-2 py-1 md:px-3 md:py-1 rounded border bg-white hover:bg-gray-100 text-xs md:text-sm whitespace-nowrap"
+        >
+          ← <span className="hidden sm:inline">Semana anterior</span>
+          <span className="sm:hidden">Ant</span>
         </button>
-        <h2 className="font-semibold text-gray-700">{titulo}</h2>
-        <button onClick={() => onCambiarSemana(7)}
-          className="px-3 py-1 rounded border bg-white hover:bg-gray-100 text-sm">
-          Semana siguiente →
+
+        <h2 className="font-semibold text-gray-700 text-xs md:text-base text-center flex-1 truncate">
+          {titulo}
+        </h2>
+
+        <button
+          onClick={() => onCambiarSemana(7)}
+          className="px-2 py-1 md:px-3 md:py-1 rounded border bg-white hover:bg-gray-100 text-xs md:text-sm whitespace-nowrap"
+        >
+          <span className="hidden sm:inline">Semana siguiente</span>
+          <span className="sm:hidden">Sig</span> →
         </button>
       </div>
 
+      {/* ============================================================ */}
+      {/* TABLA CON SCROLL HORIZONTAL EN MOBILE                          */}
+      {/* ============================================================ */}
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
+        <table className="w-full border-collapse min-w-[750px]">
           <thead>
             <tr>
-              <th className="w-20 border-b border-r bg-gray-50 p-2 text-xs text-gray-500">Hora</th>
+              <th className="w-10 md:w-16 border-b border-r bg-gray-50 p-1 md:p-2 text-xs text-gray-500">
+                Hora
+              </th>
               {dias.map((dia, i) => {
                 const iso = formatoISO(dia);
                 const esHoy = iso === hoy;
                 return (
-                  <th key={iso} className={`border-b border-r p-2 text-center ${esHoy ? 'bg-purple-50' : 'bg-gray-50'}`}>
-                    <div className={`text-xs uppercase ${esHoy ? 'text-purple-600 font-semibold' : 'text-gray-500'}`}>
+                  <th
+                    key={iso}
+                    className={`border-b border-r p-1 md:p-2 text-center ${
+                      esHoy ? 'bg-purple-50' : 'bg-gray-50'
+                    }`}
+                  >
+                    <div
+                      className={`text-[10px] md:text-xs uppercase ${
+                        esHoy ? 'text-purple-600 font-semibold' : 'text-gray-500'
+                      }`}
+                    >
                       {DIAS[i]}
                     </div>
-                    <div className={`text-lg font-bold ${esHoy ? 'text-purple-700' : 'text-gray-800'}`}>
+                    <div
+                      className={`text-sm md:text-lg font-bold ${
+                        esHoy ? 'text-purple-700' : 'text-gray-800'
+                      }`}
+                    >
                       {dia.getDate()}
                     </div>
                   </th>
@@ -291,25 +323,36 @@ export function CalendarioCamas({
           <tbody>
             {HORAS.map(hora => (
               <tr key={hora}>
-                <td className="border-b border-r bg-gray-50 p-2 text-xs font-medium text-gray-600 text-center">
+                <td className="border-b border-r bg-gray-50 p-1 md:p-2 text-[10px] md:text-xs font-medium text-gray-600 text-center whitespace-nowrap">
                   {hora}
                 </td>
                 {dias.map(dia => {
                   const iso = formatoISO(dia);
                   const slot = slotMap[`${iso}|${hora}`];
                   return (
-                    <td key={`${iso}|${hora}`} className="border-b border-r p-1 align-top">
+                    <td
+                      key={`${iso}|${hora}`}
+                      className="border-b border-r p-0.5 md:p-1 align-top"
+                    >
                       {slot ? (
-                        <CamasDelSlot slot={slot} uid={uid}
-                          onReservar={onReservar} onCancelar={onCancelar} />
+                        <CamasDelSlot
+                          slot={slot}
+                          uid={uid}
+                          onReservar={onReservar}
+                          onCancelar={onCancelar}
+                        />
                       ) : esAdmin ? (
-                        <button onClick={() => onCrearSlot(iso, hora)}
-                          className="w-full h-14 text-gray-300 hover:text-purple-500 hover:bg-purple-50 rounded text-xs transition"
-                          title="Crear slot">
+                        <button
+                          onClick={() => onCrearSlot(iso, hora)}
+                          className="w-full h-12 md:h-14 text-gray-300 hover:text-purple-500 hover:bg-purple-50 rounded text-[10px] md:text-xs transition"
+                          title="Crear slot"
+                        >
                           + crear
                         </button>
                       ) : (
-                        <div className="h-14 text-center text-gray-200 text-xs pt-3">—</div>
+                        <div className="h-12 md:h-14 text-center text-gray-200 text-xs pt-2 md:pt-3">
+                          —
+                        </div>
                       )}
                     </td>
                   );
@@ -320,21 +363,26 @@ export function CalendarioCamas({
         </table>
       </div>
 
-      <div className="px-4 py-2 border-t bg-gray-50 flex gap-4 text-xs text-gray-600">
+      {/* ============================================================ */}
+      {/* LEYENDA                                                       */}
+      {/* ============================================================ */}
+      <div className="px-3 py-2 md:px-4 border-t bg-gray-50 flex flex-wrap gap-3 md:gap-4 text-[10px] md:text-xs text-gray-600">
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded border border-gray-300 bg-white inline-block"></span> Libre
+          <span className="w-2.5 h-2.5 md:w-3 md:h-3 rounded border border-gray-300 bg-white inline-block"></span>
+          Libre
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded border border-green-400 bg-green-100 inline-block"></span> Tuya
+          <span className="w-2.5 h-2.5 md:w-3 md:h-3 rounded border border-green-400 bg-green-100 inline-block"></span>
+          Tuya
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded border border-gray-400 bg-gray-300 inline-block"></span> Ocupada
+          <span className="w-2.5 h-2.5 md:w-3 md:h-3 rounded border border-gray-400 bg-gray-300 inline-block"></span>
+          Ocupada
         </span>
       </div>
     </div>
   );
 }
-
 // ============================================================
 // PÁGINA: CLASES (alumno)
 // ============================================================
