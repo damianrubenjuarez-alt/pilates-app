@@ -1,14 +1,15 @@
 // src/ConfiguracionEstudio.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useEstudio } from './EstudioContext';
 import { actualizarRegistroAbierto, actualizarInfoEstudio } from './estudios';
-import { Settings, Lock, Globe, Check, AlertCircle, Palette, Type, Image } from 'lucide-react';
+import { Settings, Lock, Globe, Check, AlertCircle, Palette, Type, Image as ImageIcon, Upload } from 'lucide-react';
 
 export function ConfiguracionEstudio() {
   const { estudio, esAdmin, recargar } = useEstudio();
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
+  const [subiendoLogo, setSubiendoLogo] = useState(false);
 
   // Estados del formulario
   const [nombre, setNombre] = useState('');
@@ -16,7 +17,9 @@ export function ConfiguracionEstudio() {
   const [colorSecundario, setColorSecundario] = useState('#c084fc');
   const [logoUrl, setLogoUrl] = useState('');
 
-  // Cargar datos actuales en el formulario cuando el estudio esté listo
+  const fileInputRef = useRef(null);
+
+  // Cargar datos actuales
   useEffect(() => {
     if (!estudio) return;
     setNombre(estudio.nombre || '');
@@ -27,7 +30,6 @@ export function ConfiguracionEstudio() {
 
   if (!estudio) return <div className="p-8">Cargando estudio...</div>;
 
-  // Solo admins pueden ver esta página
   if (!esAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
@@ -44,7 +46,6 @@ export function ConfiguracionEstudio() {
 
   const registroAbierto = !!estudio.registroAbierto;
 
-  // Limpiar mensajes después de 4 segundos
   const mostrarMensaje = (texto, esError = false) => {
     if (esError) {
       setError(texto);
@@ -74,7 +75,65 @@ export function ConfiguracionEstudio() {
     }
   };
 
-  // Guardar cambios del formulario (nombre, colores, logo)
+  // Subir logo a Cloudinary (unsigned)
+  const handleSubirLogo = async (e) => {
+    const archivo = e.target.files?.[0];
+    if (!archivo) return;
+
+    // Validaciones
+    if (archivo.size > 2 * 1024 * 1024) {
+      mostrarMensaje('⚠️ El archivo es muy grande (máximo 2MB)', true);
+      return;
+    }
+
+    if (!archivo.type.startsWith('image/')) {
+      mostrarMensaje('⚠️ El archivo debe ser una imagen (PNG, JPG, SVG)', true);
+      return;
+    }
+
+    setSubiendoLogo(true);
+    setError('');
+    setMsg('');
+
+    try {
+      // Preparar FormData
+      const formData = new FormData();
+      formData.append('file', archivo);
+      formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET);
+      formData.append('folder', `logos/${estudio.id}`);
+
+      // Subir a Cloudinary
+      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        {
+          method: 'POST',
+          body: formData
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Error al subir la imagen');
+      }
+
+      const data = await response.json();
+
+      // data.secure_url es la URL HTTPS de la imagen
+      setLogoUrl(data.secure_url);
+
+      mostrarMensaje('✅ Logo subido. Guardá los cambios para aplicarlo.');
+    } catch (err) {
+      console.error(err);
+      mostrarMensaje('⚠️ Error al subir el logo: ' + err.message, true);
+    } finally {
+      setSubiendoLogo(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Guardar cambios (nombre, colores, logo)
   const guardarCambios = async (e) => {
     e.preventDefault();
     setGuardando(true);
@@ -97,7 +156,7 @@ export function ConfiguracionEstudio() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto p-6">
+    <div className="max-w-3xl mx-auto p-4 md:p-6">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -123,10 +182,10 @@ export function ConfiguracionEstudio() {
         </div>
       )}
 
-      {/* ============================================================
-          CARD 1: Registro abierto
-          ============================================================ */}
-      <div className="bg-white border rounded-lg p-6 space-y-4 mb-6">
+      {/* ============================================================ */}
+      {/* CARD 1: Registro abierto                                       */}
+      {/* ============================================================ */}
+      <div className="bg-white border rounded-lg p-5 md:p-6 space-y-4 mb-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
@@ -150,7 +209,7 @@ export function ConfiguracionEstudio() {
             disabled={guardando}
             aria-label={registroAbierto ? 'Desactivar registro abierto' : 'Activar registro abierto'}
             className={`
-              relative inline-flex items-center h-7 w-12 rounded-full transition-colors
+              relative inline-flex items-center h-7 w-12 rounded-full transition-colors flex-shrink-0
               focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2
               disabled:opacity-50 disabled:cursor-not-allowed
               ${registroAbierto ? 'bg-green-500' : 'bg-gray-300'}
@@ -164,23 +223,12 @@ export function ConfiguracionEstudio() {
             />
           </button>
         </div>
-
-        <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-md ${
-          registroAbierto ? 'bg-green-50 text-green-800' : 'bg-gray-50 text-gray-600'
-        }`}>
-          <span className="font-medium">Estado actual:</span>
-          <span>
-            {registroAbierto
-              ? '🟢 Registro abierto · Cualquiera puede registrarse'
-              : '🔴 Solo por invitación'}
-          </span>
-        </div>
       </div>
 
-      {/* ============================================================
-          CARD 2: Identidad del estudio (nombre + colores + logo)
-          ============================================================ */}
-      <form onSubmit={guardarCambios} className="bg-white border rounded-lg p-6 space-y-5">
+      {/* ============================================================ */}
+      {/* CARD 2: Identidad del estudio                                  */}
+      {/* ============================================================ */}
+      <form onSubmit={guardarCambios} className="bg-white border rounded-lg p-5 md:p-6 space-y-5">
         <h2 className="font-bold text-lg flex items-center gap-2">
           <Palette className="w-5 h-5 text-purple-600" />
           Identidad del estudio
@@ -199,13 +247,10 @@ export function ConfiguracionEstudio() {
             required
             className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500"
           />
-          <p className="text-xs text-gray-400 mt-1">
-            Este es el nombre que van a ver tus alumnos.
-          </p>
         </div>
 
         {/* Colores */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Color primario
@@ -215,7 +260,7 @@ export function ConfiguracionEstudio() {
                 type="color"
                 value={colorPrimario}
                 onChange={(e) => setColorPrimario(e.target.value)}
-                className="w-12 h-10 rounded border cursor-pointer"
+                className="w-12 h-10 rounded border cursor-pointer flex-shrink-0"
               />
               <input
                 type="text"
@@ -235,7 +280,7 @@ export function ConfiguracionEstudio() {
                 type="color"
                 value={colorSecundario}
                 onChange={(e) => setColorSecundario(e.target.value)}
-                className="w-12 h-10 rounded border cursor-pointer"
+                className="w-12 h-10 rounded border cursor-pointer flex-shrink-0"
               />
               <input
                 type="text"
@@ -250,66 +295,90 @@ export function ConfiguracionEstudio() {
         {/* Logo */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
-            <Image className="w-4 h-4 text-gray-400" />
-            URL del logo <span className="text-gray-400 font-normal">(opcional)</span>
+            <ImageIcon className="w-4 h-4 text-gray-400" />
+            Logo del estudio
           </label>
-          <input
-            type="url"
-            value={logoUrl}
-            onChange={(e) => setLogoUrl(e.target.value)}
-            placeholder="https://ejemplo.com/logo.png"
-            className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500"
-          />
-          <p className="text-xs text-gray-400 mt-1">
-            Pegá la URL de una imagen. Si lo dejás vacío, se usa la inicial del nombre.
-          </p>
 
-          {logoUrl && (
-            <div className="mt-3 flex items-center gap-3">
-              <span className="text-xs text-gray-500">Vista previa:</span>
-              <img
-                src={logoUrl}
-                alt="Logo"
-                className="w-12 h-12 rounded object-cover border"
-                onError={(e) => { e.target.style.display = 'none'; }}
-                onLoad={(e) => { e.target.style.display = 'block'; }}
-              />
+          {/* Vista previa + botones */}
+          <div className="flex flex-col sm:flex-row items-start gap-4 p-3 bg-gray-50 rounded-lg border">
+            
+            {/* Vista previa */}
+            <div className="flex-shrink-0">
+              {logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt="Logo"
+                  className="w-20 h-20 rounded object-cover border-2 border-white shadow-sm"
+                  onError={(e) => { e.target.style.display = 'none'; }}
+                />
+              ) : (
+                <div
+                  className="w-20 h-20 rounded flex items-center justify-center text-white font-bold text-2xl border-2 border-white shadow-sm"
+                  style={{ backgroundColor: colorPrimario }}
+                >
+                  {nombre?.[0]?.toUpperCase() || '?'}
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Vista previa del estudio */}
-        <div className="bg-gray-50 border rounded-lg p-4">
-          <p className="text-xs text-gray-500 mb-3 font-medium uppercase">
-            Vista previa
-          </p>
-          <div className="flex items-center gap-2">
-            {logoUrl ? (
-              <img
-                src={logoUrl}
-                alt="Logo"
-                className="w-8 h-8 rounded object-cover"
-                onError={(e) => {
-                  e.target.outerHTML = `<div class="w-8 h-8 rounded flex items-center justify-center text-white font-bold" style="background-color: ${colorPrimario}">${nombre?.[0]?.toUpperCase() || '?'}</div>`;
-                }}
-              />
-            ) : (
-              <div
-                className="w-8 h-8 rounded flex items-center justify-center text-white font-bold"
-                style={{ backgroundColor: colorPrimario }}
-              >
-                {nombre?.[0]?.toUpperCase() || '?'}
+            {/* Botones */}
+            <div className="flex-1 space-y-2">
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={subiendoLogo}
+                  className="inline-flex items-center gap-2 text-sm px-4 py-2 rounded bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 font-medium"
+                >
+                  <Upload className="w-4 h-4" />
+                  {subiendoLogo ? 'Subiendo...' : logoUrl ? 'Cambiar logo' : 'Subir logo'}
+                </button>
+
+                {logoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setLogoUrl('')}
+                    className="text-sm px-3 py-2 rounded border border-red-300 text-red-600 hover:bg-red-50"
+                  >
+                    Quitar
+                  </button>
+                )}
               </div>
-            )}
-            <span className="font-bold text-lg">{nombre || 'Nombre del estudio'}</span>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleSubirLogo}
+                className="hidden"
+              />
+
+              <p className="text-xs text-gray-500">
+                📁 Subí una imagen (PNG, JPG o SVG). Máximo 2 MB. Se recomienda que sea cuadrada.
+              </p>
+            </div>
           </div>
+
+          {/* Alternativa: pegar URL */}
+          <details className="mt-3">
+            <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">
+              O pegá una URL externa
+            </summary>
+            <input
+              type="url"
+              value={logoUrl}
+              onChange={(e) => setLogoUrl(e.target.value)}
+              placeholder="https://ejemplo.com/logo.png"
+              className="w-full mt-2 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+            />
+          </details>
         </div>
 
         {/* Botón guardar */}
         <div className="flex justify-end pt-2 border-t">
           <button
             type="submit"
-            disabled={guardando || !nombre.trim()}
+            disabled={guardando || !nombre.trim() || subiendoLogo}
             className="px-6 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 font-medium"
           >
             {guardando ? 'Guardando...' : 'Guardar cambios'}
@@ -318,8 +387,8 @@ export function ConfiguracionEstudio() {
       </form>
 
       {/* Próximamente */}
-      <div className="mt-6 bg-gray-50 border border-dashed rounded-lg p-6 text-center text-gray-500 text-sm">
-        🚧 Próximamente: subida de logo desde archivo, y más opciones de personalización.
+      <div className="mt-6 bg-gray-50 border border-dashed rounded-lg p-4 text-center text-gray-500 text-sm">
+        🚧 Próximamente: más opciones de personalización.
       </div>
     </div>
   );
