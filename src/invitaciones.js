@@ -5,7 +5,7 @@ import {
 } from 'firebase/firestore';
 import emailjs from '@emailjs/browser';
 import { db } from './firebase/config';
-import { unirUsuarioAEstudioTx } from './estudios';
+import { unirUsuarioAEstudio, unirUsuarioAEstudioTx } from './estudios';
 
 const EMAILJS_SERVICE_ID  = import.meta.env.VITE_EMAILJS_SERVICE_ID;
 const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
@@ -67,7 +67,8 @@ export async function enviarEmailInvitacion({
     to_name: nombre || email.split('@')[0],
     estudio_nombre: estudioNombre,
     admin_nombre: adminNombre || 'El equipo',
-    link
+    link,
+    content_type: 'text/html'
   };
 
   return emailjs.send(
@@ -152,49 +153,48 @@ export async function listarInvitaciones(estudioId) {
 }
 
 // ============================================================
-// ACEPTAR INVITACIÓN (VERSIÓN CORREGIDA Y ATÓMICA)
+// ACEPTAR INVITACIÓN (VERSIÓN SIN TRANSACCIÓN GLOBAL)
 // ============================================================
 export async function aceptarInvitacion(estudioId, token, uid, email, datosExtra = {}) {
-  return runTransaction(db, async (tx) => {
-    // 1. Leer la invitación
-    const invRef = doc(db, 'estudios', estudioId, 'invitaciones', token);
-    const invSnap = await tx.get(invRef);
+  // 1. Leer la invitación
+  const invRef = doc(db, 'estudios', estudioId, 'invitaciones', token);
+  const invSnap = await getDoc(invRef);
 
-    if (!invSnap.exists()) throw new Error('Invitación no encontrada');
+  if (!invSnap.exists()) throw new Error('Invitación no encontrada');
 
-    const data = invSnap.data();
+  const data = invSnap.data();
 
-    // 2. Validaciones
-    if (data.estado !== 'pendiente') {
-      throw new Error('Esta invitación ya fue usada');
-    }
+  // 2. Validaciones
+  if (data.estado === 'aceptada') {
+    throw new Error('Esta invitación ya fue usada');
+  }
 
-    if (data.email !== email.toLowerCase()) {
-      throw new Error('El email no coincide con la invitación');
-    }
+  if (data.email !== email.toLowerCase()) {
+    throw new Error('El email no coincide con la invitación');
+  }
 
-    const expira = data.expiraEn?.toDate?.() || new Date(data.expiraEn);
-    if (expira < new Date()) throw new Error('Esta invitación expiró');
+  const expira = data.expiraEn?.toDate?.() || new Date(data.expiraEn);
+  if (expira < new Date()) throw new Error('Esta invitación expiró');
 
-    // 3. Unir al usuario al estudio (dentro de la misma transacción)
-    await unirUsuarioAEstudioTx(tx, estudioId, uid, {
-      nombre: datosExtra.nombre || data.nombre,
-      email: data.email,
-      telefono: datosExtra.telefono || data.telefono || '',
-      rol: data.rol,
-      clasesIniciales: data.clasesIniciales || 0
-    });
-
-    // 4. Marcar la invitación como aceptada
-    tx.update(invRef, {
-      estado: 'aceptada',
-      aceptadaEn: serverTimestamp(),
-      aceptadaPor: uid
-    });
-
-    return true;
+  // 3. Unir al usuario al estudio (usa su propia transacción interna)
+  await unirUsuarioAEstudio(estudioId, uid, {
+    nombre: datosExtra.nombre || data.nombre,
+    email: data.email,
+    telefono: datosExtra.telefono || data.telefono || '',
+    rol: data.rol,
+    clasesIniciales: data.clasesIniciales || 0
   });
+
+  // 4. Marcar la invitación como aceptada (operación separada)
+  await updateDoc(invRef, {
+    estado: 'aceptada',
+    aceptadaEn: serverTimestamp(),
+    aceptadaPor: uid
+  });
+
+  return true;
 }
+
 // ============================================================
 // CREAR INVITACIÓN SIN ENVIAR EMAIL
 // ============================================================
@@ -205,8 +205,8 @@ export async function crearInvitacionSinEmail(estudioId, {
     email, nombre, telefono, clasesIniciales, rol, creadaPor
   });
   return { token };
-  
 }
+
 // ============================================================
 // OBTENER INVITACIÓN DE ADMIN PENDIENTE
 // ============================================================
