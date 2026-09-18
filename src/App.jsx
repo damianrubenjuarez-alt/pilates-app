@@ -16,6 +16,7 @@ import { CrearEstudio } from './CrearEstudio';
 import { ConfiguracionEstudio } from './ConfiguracionEstudio';
 import { Recordatorios } from './Recordatorios';
 import { RecuperarPassword } from './RecuperarPassword';
+import { Estadisticas } from './Estadisticas';
 
 // ============================================================
 // Layout de estudio (Navbar + contenido)
@@ -103,7 +104,11 @@ export default function App() {
               <AdminAlumnos />
             </RutaProtegida>
           } />
-
+            <Route path="admin/estadisticas" element={
+            <RutaProtegida soloAdmin>
+            <Estadisticas />
+           </RutaProtegida>
+          } />
           {/* Recordatorios: solo admin */}
           <Route path="admin/recordatorios" element={
             <RutaProtegida soloAdmin>

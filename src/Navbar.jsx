@@ -175,8 +175,7 @@ export function Navbar() {
               Calendario
             </Link>
           )}
-
-          {/* Alumnos: SOLO admin */}
+                    {/* Alumnos: SOLO admin */}
           {esAdmin && (
             <Link
               to={`/${slug}/admin/alumnos`}
@@ -184,6 +183,17 @@ export function Navbar() {
               style={{ color }}
             >
               Alumnos
+            </Link>
+          )}
+
+          {/* Estadísticas: SOLO admin */}
+          {esAdmin && (
+            <Link
+              to={`/${slug}/admin/estadisticas`}
+              className="text-xs md:text-sm font-semibold hover:underline"
+              style={{ color }}
+            >
+              📊 Estadísticas
             </Link>
           )}
 
