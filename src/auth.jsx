@@ -5,7 +5,8 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   createUserWithEmailAndPassword,
-  updateProfile
+  updateProfile,
+  sendEmailVerification
 } from 'firebase/auth';
 import { auth, googleProvider } from './firebase/config';
 import { useEstudio } from './EstudioContext';
@@ -161,28 +162,37 @@ export function Registro() {
   }
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setCargando(true);
+  e.preventDefault();
+  setError('');
+  setCargando(true);
 
+  try {
+    const { user } = await createUserWithEmailAndPassword(auth, email, pass);
+    await updateProfile(user, { displayName: nombre });
+
+    // 👇 NUEVO: Enviar email de verificación
     try {
-      const { user } = await createUserWithEmailAndPassword(auth, email, pass);
-      await updateProfile(user, { displayName: nombre });
-      await upsertUsuarioGlobal(user.uid, { nombre, email });
-
-      await unirUsuarioAEstudio(estudio.id, user.uid, {
-        nombre,
-        email,
-        rol: 'alumno'
+      await sendEmailVerification(user, {
+        url: `${window.location.origin}/${slug}/clases`
       });
-
-      navigate(`/${slug}/clases`);
-    } catch (err) {
-      setError(traducirError(err.code));
-      setCargando(false);
+    } catch (verifyErr) {
+      console.warn('No se pudo enviar el email de verificación:', verifyErr.message);
     }
-  };
 
+    await upsertUsuarioGlobal(user.uid, { nombre, email });
+
+    await unirUsuarioAEstudio(estudio.id, user.uid, {
+      nombre,
+      email,
+      rol: 'alumno'
+    });
+
+    navigate(`/${slug}/clases`);
+  } catch (err) {
+    setError(traducirError(err.code));
+    setCargando(false);
+  }
+};
   const color = estudio?.branding?.colorPrimario || '#9333ea';
 
   return (

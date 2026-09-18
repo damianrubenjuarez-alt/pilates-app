@@ -31,7 +31,34 @@ export function Navbar() {
           {' '}Contactá al soporte para renovarlo.
         </div>
       )}
-
+{/* Banner de verificación de email */}
+{user && !user.emailVerified && (
+  <div className="bg-blue-50 border-b border-blue-200 px-4 py-2 text-xs md:text-sm text-blue-800 flex items-center justify-between gap-3">
+    <span className="flex items-center gap-2">
+      📧 <span className="hidden sm:inline">Verificá tu email para asegurar tu cuenta.</span>
+      <span className="sm:hidden">Verificá tu email</span>
+    </span>
+    <button
+      onClick={async () => {
+        try {
+          await user.reload();
+          if (user.emailVerified) {
+            window.location.reload();
+          } else {
+            const { sendEmailVerification } = await import('firebase/auth');
+            await sendEmailVerification(user);
+            alert('✅ Te reenviamos el email de verificación. Revisá tu bandeja de entrada (y el spam).');
+          }
+        } catch (e) {
+          alert('Error: ' + e.message);
+        }
+      }}
+      className="text-xs font-medium text-blue-700 hover:text-blue-900 hover:underline whitespace-nowrap"
+    >
+      Reenviar
+    </button>
+  </div>
+)}
       <nav className="bg-white border-b">
         
         {/* ============================================================ */}
