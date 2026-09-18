@@ -93,10 +93,12 @@ export async function reservarCama(estudioId, slotId, numeroCama, uid, nombre) {
     const slot = slotSnap.data();
     const miembro = miembroSnap.data();
 
-    const hoyISO = new Date().toISOString().slice(0, 10);
-    if (slot.fecha < hoyISO) {
-      throw new Error('No podés reservar una clase pasada');
-    }
+    // Comparar fecha + hora exactas
+    const fechaSlot = new Date(slot.fecha + 'T' + slot.hora + ':00');
+    const ahora = new Date();
+    if (fechaSlot < ahora) {
+      throw new Error('No podés reservar una clase que ya comenzó');
+   }
 
     if ((miembro.clasesRestantes || 0) <= 0) {
       throw new Error('No tenés clases disponibles');
