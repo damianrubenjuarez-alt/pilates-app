@@ -115,7 +115,7 @@ export function CrearEstudio() {
               <input
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
-                placeholder="Ej: Fenix Pilates"
+                placeholder="Ej: El Nombre del estudio"
                 required
                 autoFocus
                 className="w-full border rounded-lg px-3 py-3 focus:outline-none focus:border-purple-500 text-lg"
