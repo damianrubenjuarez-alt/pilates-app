@@ -205,7 +205,7 @@ function formatoISO(fecha) {
 }
 
 // ============================================================
-// COMPONENTE: CAMAS DE UN SLOT
+// COMPONENTE: CAMAS DE UN SLOT (vista tabla / desktop)
 // ============================================================
 function CamasDelSlot({ slot, uid, onReservar, onCancelar }) {
   const libres = slot.camas.filter(c => c.estado === 'libre').length;
@@ -251,7 +251,177 @@ function CamasDelSlot({ slot, uid, onReservar, onCancelar }) {
 }
 
 // ============================================================
-// COMPONENTE: CALENDARIO
+// COMPONENTE: SLOT EN LISTA (mobile)
+// ============================================================
+function SlotEnLista({ slot, uid, onReservar, onCancelar }) {
+  const libres = slot.camas.filter(c => c.estado === 'libre').length;
+  const total = slot.camas.length;
+  const porcentaje = Math.round(((total - libres) / total) * 100);
+
+  return (
+    <div className="p-3">
+      {/* Fila superior: hora, instructor, ocupación */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-base font-bold text-gray-800">
+            {slot.hora}
+          </span>
+          <span className="text-xs text-gray-500">
+            {slot.instructor} · {slot.tipo}
+          </span>
+        </div>
+        <span
+          className={`text-xs px-2 py-0.5 rounded-full ${
+            libres === 0
+              ? 'bg-red-100 text-red-700'
+              : libres <= 2
+              ? 'bg-yellow-100 text-yellow-700'
+              : 'bg-green-100 text-green-700'
+          }`}
+        >
+          {libres}/{total} libres
+        </span>
+      </div>
+
+      {/* Barra de progreso */}
+      <div className="h-1 bg-gray-100 rounded-full mb-3 overflow-hidden">
+        <div
+          className={`h-full transition-all ${
+            porcentaje === 100
+              ? 'bg-red-500'
+              : porcentaje >= 75
+              ? 'bg-yellow-500'
+              : 'bg-green-500'
+          }`}
+          style={{ width: `${porcentaje}%` }}
+        />
+      </div>
+
+      {/* Camas */}
+      <div className="grid grid-cols-4 gap-2">
+        {slot.camas.map(cama => {
+          const esMia = uid && cama.uid === uid;
+          const ocupada = cama.estado === 'ocupada';
+          return (
+            <button
+              key={cama.numero}
+              onClick={() => {
+                if (esMia) {
+                  if (confirm('¿Cancelar esta reserva?')) {
+                    onCancelar(slot.id, cama.numero);
+                  }
+                } else if (!ocupada && uid) {
+                  onReservar(slot.id, cama.numero);
+                }
+              }}
+              disabled={(ocupada && !esMia) || (!uid && !esMia)}
+              title={
+                esMia
+                  ? `Tu cama ${cama.numero} - clic para cancelar`
+                  : ocupada
+                  ? `Ocupada por ${cama.nombre || 'alguien'}`
+                  : `Cama ${cama.numero} libre`
+              }
+              className={`h-9 rounded text-xs font-bold flex items-center justify-center transition ${
+                esMia
+                  ? 'bg-green-500 text-white hover:bg-green-600'
+                  : ocupada
+                  ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                  : 'bg-white border-2 border-gray-200 text-gray-500 hover:bg-purple-50 hover:border-purple-400 active:bg-purple-100'
+              }`}
+            >
+              {esMia ? '✓' : ocupada ? '×' : cama.numero}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// COMPONENTE: CALENDARIO EN LISTA (mobile)
+// ============================================================
+function CalendarioLista({
+  slots, uid, onReservar, onCancelar, semanaBase,
+  esAdmin = false, onCrearSlot
+}) {
+  const lunes = lunesDe(semanaBase);
+  const dias = Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i));
+  const hoy = formatoISO(new Date());
+
+  // Agrupar slots por fecha
+  const slotsPorDia = {};
+  dias.forEach(d => { slotsPorDia[formatoISO(d)] = []; });
+  slots.forEach(s => {
+    if (slotsPorDia[s.fecha]) slotsPorDia[s.fecha].push(s);
+  });
+
+  return (
+    <div className="space-y-4">
+      {dias.map((dia, i) => {
+        const iso = formatoISO(dia);
+        const esHoy = iso === hoy;
+        const slotsDelDia = slotsPorDia[iso] || [];
+        const fechaLarga = `${DIAS[i]} ${dia.getDate()} de ${MESES[dia.getMonth()]}`;
+
+        return (
+          <div
+            key={iso}
+            className={`bg-white rounded-lg border shadow-sm overflow-hidden ${
+              esHoy ? 'ring-2 ring-purple-400' : ''
+            }`}
+          >
+            {/* Header del día */}
+            <div
+              className={`px-3 py-2 border-b font-semibold text-sm ${
+                esHoy
+                  ? 'bg-purple-50 text-purple-700'
+                  : 'bg-gray-50 text-gray-700'
+              }`}
+            >
+              {esHoy ? '🔥 Hoy · ' : ''}{fechaLarga}
+              <span className="ml-2 text-xs font-normal text-gray-500">
+                ({slotsDelDia.length} {slotsDelDia.length === 1 ? 'clase' : 'clases'})
+              </span>
+            </div>
+
+            {/* Slots del día */}
+            {slotsDelDia.length === 0 ? (
+              <div className="px-3 py-4 text-center text-gray-400 text-sm">
+                {esAdmin ? (
+                  <button
+                    onClick={() => onCrearSlot(iso, '08:00')}
+                    className="text-purple-600 hover:underline"
+                  >
+                    + Crear primer slot de este día
+                  </button>
+                ) : (
+                  'Sin clases este día'
+                )}
+              </div>
+            ) : (
+              <div className="divide-y">
+                {slotsDelDia.map(slot => (
+                  <SlotEnLista
+                    key={slot.id}
+                    slot={slot}
+                    uid={uid}
+                    onReservar={onReservar}
+                    onCancelar={onCancelar}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================================
+// COMPONENTE: CALENDARIO (wrapper con vista tabla + lista)
 // ============================================================
 export function CalendarioCamas({
   slots, uid, onReservar, onCancelar, semanaBase, onCambiarSemana,
@@ -296,8 +466,8 @@ export function CalendarioCamas({
         </button>
       </div>
 
-      {/* TABLA CON SCROLL HORIZONTAL EN MOBILE */}
-      <div className="overflow-x-auto">
+      {/* VISTA DESKTOP: TABLA (oculta en mobile) */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full border-collapse min-w-[750px]">
           <thead>
             <tr>
@@ -374,6 +544,19 @@ export function CalendarioCamas({
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* VISTA MOBILE: LISTA (oculta en desktop) */}
+      <div className="md:hidden p-3 bg-gray-50">
+        <CalendarioLista
+          slots={slots}
+          uid={uid}
+          onReservar={onReservar}
+          onCancelar={onCancelar}
+          semanaBase={semanaBase}
+          esAdmin={esAdmin}
+          onCrearSlot={onCrearSlot}
+        />
       </div>
 
       {/* LEYENDA */}
