@@ -58,18 +58,7 @@ export function EstudioProvider({ children }) {
           return;
         }
 
-        // ⚠️ CAMBIO: si no hay usuario logueado, limpiamos todo el estado
-        // del estudio y salimos. Esto evita fugas de memoria al hacer logout.
-        if (!user) {
-          if (!cancelado) {
-            setEstudio(null);
-            setMiembro(null);
-            setError(null);
-            setCargando(false);
-          }
-          return;
-        }
-
+        // Cargamos el estudio aunque no haya usuario (para la invitación)
         const est = await obtenerEstudioPorSlug(slug);
         if (cancelado) return;
 
@@ -85,9 +74,13 @@ export function EstudioProvider({ children }) {
           return;
         }
 
-        // El estudio se carga igual aunque el plan esté vencido.
-        // El banner del Navbar se encarga de avisar.
         setEstudio(est);
+
+        // Si no hay usuario, terminamos acá (sin cargar el miembro)
+        if (!user) {
+          setCargando(false);
+          return;
+        }
 
         // ============================================================
         // 3. Cargar el perfil del usuario DENTRO de este estudio
