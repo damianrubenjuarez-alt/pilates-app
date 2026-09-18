@@ -34,6 +34,28 @@ export async function crearSlot(estudioId, {
   });
 }
 
+// 🆕 Crear varios slots de un mismo día (mismo instructor/tipo/camas)
+export async function crearSlotsMultiples(estudioId, { fecha, horas, instructor, tipo, camas }) {
+  const creados = [];
+  const errores = [];
+  const duplicados = [];
+
+  for (const hora of horas) {
+    try {
+      await crearSlot(estudioId, { fecha, hora, instructor, tipo, camas });
+      creados.push(hora);
+    } catch (err) {
+      if (err.message?.includes('Ya existe')) {
+        duplicados.push(hora);
+      } else {
+        errores.push({ hora, error: err.message });
+      }
+    }
+  }
+
+  return { creados, duplicados, errores };
+}
+
 // Lee una sola vez (se usa en MisReservas)
 export async function listarSlotsPorRango(estudioId, desde, hasta) {
   const q = query(
@@ -127,7 +149,7 @@ export async function cancelarCama(estudioId, slotId, numeroCama, uidSolicitante
 
     const slot = slotSnap.data();
 
-    // 🆕 Validar límite de cancelación (solo si NO es admin)
+    // Validar límite de cancelación (solo si NO es admin)
     if (!esAdmin && limiteHoras > 0) {
       const fechaSlot = new Date(slot.fecha + 'T' + slot.hora + ':00');
       const ahora = new Date();
@@ -260,7 +282,6 @@ function SlotEnLista({ slot, uid, onReservar, onCancelar }) {
 
   return (
     <div className="p-3">
-      {/* Fila superior: hora, instructor, ocupación */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="text-base font-bold text-gray-800">
@@ -283,7 +304,6 @@ function SlotEnLista({ slot, uid, onReservar, onCancelar }) {
         </span>
       </div>
 
-      {/* Barra de progreso */}
       <div className="h-1 bg-gray-100 rounded-full mb-3 overflow-hidden">
         <div
           className={`h-full transition-all ${
@@ -297,7 +317,6 @@ function SlotEnLista({ slot, uid, onReservar, onCancelar }) {
         />
       </div>
 
-      {/* Camas */}
       <div className="grid grid-cols-4 gap-2">
         {slot.camas.map(cama => {
           const esMia = uid && cama.uid === uid;
@@ -340,31 +359,72 @@ function SlotEnLista({ slot, uid, onReservar, onCancelar }) {
 }
 
 // ============================================================
-// COMPONENTE: SELECTOR DE HORARIO (para admin, vista lista mobile)
+// COMPONENTE: SELECTOR DE HORARIO (multi-selección, mobile)
 // ============================================================
-function SelectorHorario({ iso, onElegir, onCancelar }) {
+function SelectorHorario({ iso, horasExistentes, onCrear, onCancelar }) {
+  const [seleccionadas, setSeleccionadas] = useState([]);
+
+  const toggle = (hora) => {
+    if (horasExistentes.includes(hora)) return;
+    setSeleccionadas(prev =>
+      prev.includes(hora)
+        ? prev.filter(h => h !== hora)
+        : [...prev, hora].sort()
+    );
+  };
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <p className="text-xs text-gray-600 font-medium">
-        Elegí un horario:
+        Elegí uno o más horarios:
       </p>
       <div className="grid grid-cols-4 gap-1">
-        {HORAS.map(h => (
-          <button
-            key={h}
-            onClick={() => onElegir(iso, h)}
-            className="px-2 py-1 rounded text-xs border bg-white text-gray-600 border-gray-300 hover:bg-purple-50 hover:border-purple-400 active:bg-purple-100"
-          >
-            {h}
-          </button>
-        ))}
+        {HORAS.map(h => {
+          const existe = horasExistentes.includes(h);
+          const seleccionado = seleccionadas.includes(h);
+          return (
+            <button
+              key={h}
+              onClick={() => toggle(h)}
+              disabled={existe}
+              title={existe ? 'Ya existe un slot en este horario' : ''}
+              className={`px-2 py-1 rounded text-xs border transition ${
+                existe
+                  ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed line-through'
+                  : seleccionado
+                  ? 'bg-purple-600 text-white border-purple-600'
+                  : 'bg-white text-gray-600 border-gray-300 hover:bg-purple-50 hover:border-purple-400 active:bg-purple-100'
+              }`}
+            >
+              {h}
+            </button>
+          );
+        })}
       </div>
-      <button
-        onClick={onCancelar}
-        className="text-xs text-gray-500 hover:underline"
-      >
-        Cancelar
-      </button>
+
+      <div className="flex items-center justify-between gap-2 pt-1">
+        <button
+          onClick={onCancelar}
+          className="text-xs text-gray-500 hover:underline"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={() => onCrear(iso, seleccionadas)}
+          disabled={seleccionadas.length === 0}
+          className="px-3 py-1 rounded text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {seleccionadas.length === 0
+            ? 'Elegí horarios'
+            : `Crear ${seleccionadas.length} ${seleccionadas.length === 1 ? 'slot' : 'slots'}`}
+        </button>
+      </div>
+
+      {seleccionadas.length > 0 && (
+        <p className="text-[10px] text-gray-500">
+          Seleccionados: {seleccionadas.join(', ')}
+        </p>
+      )}
     </div>
   );
 }
@@ -374,13 +434,12 @@ function SelectorHorario({ iso, onElegir, onCancelar }) {
 // ============================================================
 function CalendarioLista({
   slots, uid, onReservar, onCancelar, semanaBase,
-  esAdmin = false, onCrearSlot
+  esAdmin = false, onCrearSlots
 }) {
   const lunes = lunesDe(semanaBase);
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i));
   const hoy = formatoISO(new Date());
 
-  // 🆕 Estado: qué día tiene el selector de horario abierto (o null)
   const [diaSeleccionando, setDiaSeleccionando] = useState(null);
 
   // Agrupar slots por fecha
@@ -396,6 +455,7 @@ function CalendarioLista({
         const iso = formatoISO(dia);
         const esHoy = iso === hoy;
         const slotsDelDia = slotsPorDia[iso] || [];
+        const horasExistentes = slotsDelDia.map(s => s.hora);
         const fechaLarga = `${DIAS[i]} ${dia.getDate()} de ${MESES[dia.getMonth()]}`;
         const mostrandoSelector = diaSeleccionando === iso;
 
@@ -427,8 +487,9 @@ function CalendarioLista({
                   mostrandoSelector ? (
                     <SelectorHorario
                       iso={iso}
-                      onElegir={(fecha, hora) => {
-                        onCrearSlot(fecha, hora);
+                      horasExistentes={horasExistentes}
+                      onCrear={(fecha, horas) => {
+                        onCrearSlots(fecha, horas);
                         setDiaSeleccionando(null);
                       }}
                       onCancelar={() => setDiaSeleccionando(null)}
@@ -438,7 +499,7 @@ function CalendarioLista({
                       onClick={() => setDiaSeleccionando(iso)}
                       className="text-purple-600 hover:underline"
                     >
-                      + Crear primer slot de este día
+                      + Agregar horarios
                     </button>
                   )
                 ) : (
@@ -446,17 +507,43 @@ function CalendarioLista({
                 )}
               </div>
             ) : (
-              <div className="divide-y">
-                {slotsDelDia.map(slot => (
-                  <SlotEnLista
-                    key={slot.id}
-                    slot={slot}
-                    uid={uid}
-                    onReservar={onReservar}
-                    onCancelar={onCancelar}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="divide-y">
+                  {slotsDelDia.map(slot => (
+                    <SlotEnLista
+                      key={slot.id}
+                      slot={slot}
+                      uid={uid}
+                      onReservar={onReservar}
+                      onCancelar={onCancelar}
+                    />
+                  ))}
+                </div>
+
+                {/* Botón para agregar más horarios (solo admin) */}
+                {esAdmin && (
+                  <div className="px-3 py-2 border-t bg-gray-50 text-center">
+                    {mostrandoSelector ? (
+                      <SelectorHorario
+                        iso={iso}
+                        horasExistentes={horasExistentes}
+                        onCrear={(fecha, horas) => {
+                          onCrearSlots(fecha, horas);
+                          setDiaSeleccionando(null);
+                        }}
+                        onCancelar={() => setDiaSeleccionando(null)}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => setDiaSeleccionando(iso)}
+                        className="text-xs text-purple-600 hover:underline"
+                      >
+                        + Agregar más horarios
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         );
@@ -600,7 +687,7 @@ export function CalendarioCamas({
           onCancelar={onCancelar}
           semanaBase={semanaBase}
           esAdmin={esAdmin}
-          onCrearSlot={onCrearSlot}
+          onCrearSlots={onCrearSlot}
         />
       </div>
 
@@ -730,7 +817,7 @@ export function Admin() {
   const { estudio } = useEstudio();
   const [slots, setSlots] = useState([]);
   const [semana, setSemana] = useState(new Date());
-  const [modal, setModal] = useState(null);
+  const [modal, setModal] = useState(null); // { fecha, horas: [] }
   const [form, setForm] = useState({ instructor: 'Lucía', tipo: 'Reformer', camas: 8 });
 
   const [modalSemana, setModalSemana] = useState(false);
@@ -776,19 +863,49 @@ export function Admin() {
     return () => unsub();
   }, [semana, estudio?.id]);
 
-  const abrirModal = (fecha, hora) => setModal({ fecha, hora });
+  // 🆕 Acepta (fecha, horas[])
+  const abrirModal = (fecha, horas) => {
+    // Compatibilidad: si viene un solo horario como string, lo convertimos en array
+    const horasArr = Array.isArray(horas) ? horas : [horas];
+    if (horasArr.length === 0) return;
+    setModal({ fecha, horas: horasArr });
+  };
 
   const crearDesdeModal = async () => {
     if (!modal) return;
+    setMsgAdmin('');
+    setCreando(true);
     try {
-      await crearSlot(estudio.id, {
-        fecha: modal.fecha, hora: modal.hora,
-        instructor: form.instructor, tipo: form.tipo,
-        camas: Number(form.camas)
-      });
+      const { creados, duplicados, errores } = await crearSlotsMultiples(
+        estudio.id,
+        {
+          fecha: modal.fecha,
+          horas: modal.horas,
+          instructor: form.instructor,
+          tipo: form.tipo,
+          camas: Number(form.camas)
+        }
+      );
+
+      let mensaje = '';
+      if (creados.length > 0) mensaje += `✅ ${creados.length} ${creados.length === 1 ? 'slot creado' : 'slots creados'}`;
+      if (duplicados.length > 0) {
+        if (mensaje) mensaje += ' · ';
+        mensaje += `${duplicados.length} ya existían`;
+      }
+      if (errores.length > 0) {
+        if (mensaje) mensaje += ' · ';
+        mensaje += `⚠️ ${errores.length} con error`;
+      }
+      if (!mensaje) mensaje = 'ℹ️ No se creó ningún slot';
+
+      setMsgAdmin(mensaje);
       setModal(null);
     } catch (e) {
-      alert('⚠️ Error al crear slot: ' + e.message);
+      console.error(e);
+      setMsgAdmin('⚠️ Error: ' + e.message);
+    } finally {
+      setCreando(false);
     }
   };
 
@@ -953,12 +1070,23 @@ export function Admin() {
         </div>
       </div>
 
-      {/* MODAL CREAR SLOT */}
+      {/* MODAL CREAR SLOT (soporta múltiples horarios) */}
       {modal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-sm space-y-4">
-            <h3 className="text-lg font-bold">Crear slot</h3>
-            <p className="text-sm text-gray-500">📅 {modal.fecha} · 🕐 {modal.hora}</p>
+            <h3 className="text-lg font-bold">
+              {modal.horas.length === 1 ? 'Crear slot' : `Crear ${modal.horas.length} slots`}
+            </h3>
+            <div className="text-sm text-gray-500 space-y-1">
+              <p>📅 {modal.fecha}</p>
+              <p className="flex flex-wrap gap-1">
+                🕐 {modal.horas.map(h => (
+                  <span key={h} className="bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded text-xs">
+                    {h}
+                  </span>
+                ))}
+              </p>
+            </div>
             <div>
               <label className="block text-xs text-gray-600 mb-1">Instructor</label>
               <input value={form.instructor}
@@ -983,10 +1111,14 @@ export function Admin() {
                 className="w-full border rounded px-3 py-2" />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => setModal(null)}
-                className="px-4 py-2 rounded border hover:bg-gray-100">Cancelar</button>
-              <button onClick={crearDesdeModal}
-                className="px-4 py-2 rounded bg-purple-600 text-white hover:bg-purple-700">Crear</button>
+              <button onClick={() => setModal(null)} disabled={creando}
+                className="px-4 py-2 rounded border hover:bg-gray-100 disabled:opacity-50">
+                Cancelar
+              </button>
+              <button onClick={crearDesdeModal} disabled={creando}
+                className="px-4 py-2 rounded bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50">
+                {creando ? 'Creando...' : `Crear ${modal.horas.length === 1 ? 'slot' : `${modal.horas.length} slots`}`}
+              </button>
             </div>
           </div>
         </div>
