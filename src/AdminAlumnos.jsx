@@ -217,19 +217,81 @@ export function AdminAlumnos() {
     return true;
   });
 
+  // ============================================================
+  // EXPORTAR ALUMNOS A CSV
+  // ============================================================
+  const exportarCSV = () => {
+    if (alumnosFiltrados.length === 0) {
+      setMsgError('⚠️ No hay alumnos para exportar');
+      return;
+    }
+
+    const columnas = [
+      'Nombre',
+      'Email',
+      'Teléfono',
+      'Rol',
+      'Clases restantes',
+      'Estado'
+    ];
+
+    const escapar = (valor) => {
+      if (valor === null || valor === undefined) return '';
+      const string = String(valor);
+      if (string.includes(',') || string.includes('"') || string.includes('\n')) {
+        return `"${string.replace(/"/g, '""')}"`;
+      }
+      return string;
+    };
+
+    const filas = alumnosFiltrados.map(a => [
+      escapar(a.nombre || ''),
+      escapar(a.email || ''),
+      escapar(a.telefono || ''),
+      escapar(a.rol || ''),
+      escapar(a.clasesRestantes ?? 0),
+      escapar(a.activo === false ? 'Inactivo' : 'Activo')
+    ]);
+
+    const contenido = [
+      columnas.join(','),
+      ...filas.map(f => f.join(','))
+    ].join('\n');
+
+    const blob = new Blob(['\uFEFF' + contenido], {
+      type: 'text/csv;charset=utf-8;'
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const fecha = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `alumnos-${estudio.slug}-${fecha}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    setMsg(`✅ CSV descargado (${alumnosFiltrados.length} alumnos)`);
+  };
+
   return (
     <div className="max-w-6xl mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-6 flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold">👥 Alumnos</h1>
           <p className="text-sm text-gray-500">
             {estudio.nombre} · {alumnos.length} miembros
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button onClick={cargar}
             className="text-sm px-3 py-2 rounded border bg-white hover:bg-gray-100">
             🔄 Recargar
+          </button>
+          <button onClick={exportarCSV}
+            className="text-sm px-3 py-2 rounded border bg-white hover:bg-gray-100">
+            📥 Descargar CSV
           </button>
           <button onClick={() => setModalInvitar(true)}
             className="text-sm px-4 py-2 rounded bg-purple-600 text-white hover:bg-purple-700">
