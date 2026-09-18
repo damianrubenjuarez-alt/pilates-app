@@ -299,7 +299,7 @@ export function CalendarioCamas({
         <table className="w-full border-collapse min-w-[750px]">
           <thead>
             <tr>
-              <th className="w-10 md:w-16 border-b border-r bg-gray-50 p-1 md:p-2 text-xs text-gray-500">
+              <th className="sticky left-0 z-20 w-10 md:w-16 border-b border-r bg-gray-50 p-1 md:p-2 text-xs text-gray-500">
                 Hora
               </th>
               {dias.map((dia, i) => {
@@ -334,7 +334,7 @@ export function CalendarioCamas({
           <tbody>
             {HORAS.map(hora => (
               <tr key={hora}>
-                <td className="border-b border-r bg-gray-50 p-1 md:p-2 text-[10px] md:text-xs font-medium text-gray-600 text-center whitespace-nowrap">
+                <td className="sticky left-0 z-10 border-b border-r bg-gray-50 p-1 md:p-2 text-[10px] md:text-xs font-medium text-gray-600 text-center whitespace-nowrap">
                   {hora}
                 </td>
                 {dias.map(dia => {
