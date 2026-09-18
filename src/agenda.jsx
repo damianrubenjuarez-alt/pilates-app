@@ -340,6 +340,36 @@ function SlotEnLista({ slot, uid, onReservar, onCancelar }) {
 }
 
 // ============================================================
+// COMPONENTE: SELECTOR DE HORARIO (para admin, vista lista mobile)
+// ============================================================
+function SelectorHorario({ iso, onElegir, onCancelar }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-gray-600 font-medium">
+        Elegí un horario:
+      </p>
+      <div className="grid grid-cols-4 gap-1">
+        {HORAS.map(h => (
+          <button
+            key={h}
+            onClick={() => onElegir(iso, h)}
+            className="px-2 py-1 rounded text-xs border bg-white text-gray-600 border-gray-300 hover:bg-purple-50 hover:border-purple-400 active:bg-purple-100"
+          >
+            {h}
+          </button>
+        ))}
+      </div>
+      <button
+        onClick={onCancelar}
+        className="text-xs text-gray-500 hover:underline"
+      >
+        Cancelar
+      </button>
+    </div>
+  );
+}
+
+// ============================================================
 // COMPONENTE: CALENDARIO EN LISTA (mobile)
 // ============================================================
 function CalendarioLista({
@@ -349,6 +379,9 @@ function CalendarioLista({
   const lunes = lunesDe(semanaBase);
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i));
   const hoy = formatoISO(new Date());
+
+  // 🆕 Estado: qué día tiene el selector de horario abierto (o null)
+  const [diaSeleccionando, setDiaSeleccionando] = useState(null);
 
   // Agrupar slots por fecha
   const slotsPorDia = {};
@@ -364,6 +397,7 @@ function CalendarioLista({
         const esHoy = iso === hoy;
         const slotsDelDia = slotsPorDia[iso] || [];
         const fechaLarga = `${DIAS[i]} ${dia.getDate()} de ${MESES[dia.getMonth()]}`;
+        const mostrandoSelector = diaSeleccionando === iso;
 
         return (
           <div
@@ -390,12 +424,23 @@ function CalendarioLista({
             {slotsDelDia.length === 0 ? (
               <div className="px-3 py-4 text-center text-gray-400 text-sm">
                 {esAdmin ? (
-                  <button
-                    onClick={() => onCrearSlot(iso, '08:00')}
-                    className="text-purple-600 hover:underline"
-                  >
-                    + Crear primer slot de este día
-                  </button>
+                  mostrandoSelector ? (
+                    <SelectorHorario
+                      iso={iso}
+                      onElegir={(fecha, hora) => {
+                        onCrearSlot(fecha, hora);
+                        setDiaSeleccionando(null);
+                      }}
+                      onCancelar={() => setDiaSeleccionando(null)}
+                    />
+                  ) : (
+                    <button
+                      onClick={() => setDiaSeleccionando(iso)}
+                      className="text-purple-600 hover:underline"
+                    >
+                      + Crear primer slot de este día
+                    </button>
+                  )
                 ) : (
                   'Sin clases este día'
                 )}
