@@ -17,6 +17,7 @@ import './index.css';
   );
   document.head.appendChild(meta);
 
+  // Debug en consola
   console.log('🔧 Viewport forzado. Ancho:', window.innerWidth);
 })();
 
