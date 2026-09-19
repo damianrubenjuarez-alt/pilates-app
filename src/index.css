@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* ============================================================
-   FIX MOBILE: forzar layout responsive
+   FIX MOBILE: agrandar fuentes y elementos táctiles
    ============================================================ */
 html {
   -webkit-text-size-adjust: 100%;
@@ -36,4 +36,42 @@ img, video, svg, canvas {
 
 input, select, textarea, button {
   font-size: 16px;
+}
+
+/* ============================================================
+   🆕 AGRANDAR TODO EN MOBILE
+   ============================================================ */
+@media (max-width: 768px) {
+  html {
+    font-size: 18px; /* antes 16px → ahora todos los rem son +12% más grandes */
+  }
+
+  /* Forzar tamaños de texto más grandes */
+  .text-\[8px\] { font-size: 11px !important; }
+  .text-\[9px\] { font-size: 12px !important; }
+  .text-\[10px\] { font-size: 13px !important; }
+  .text-xs { font-size: 14px !important; }      /* antes 12px */
+  .text-sm { font-size: 16px !important; }      /* antes 14px */
+  .text-base { font-size: 18px !important; }    /* antes 16px */
+  .text-lg { font-size: 20px !important; }      /* antes 18px */
+  .text-xl { font-size: 22px !important; }      /* antes 20px */
+  .text-2xl { font-size: 26px !important; }     /* antes 24px */
+
+  /* Agrandar botones de camas (tap targets) */
+  .h-9 { height: 44px !important; }
+  .h-12 { height: 52px !important; }
+
+  /* Espaciado más cómodo */
+  .p-2 { padding: 10px !important; }
+  .p-3 { padding: 14px !important; }
+  .p-4 { padding: 16px !important; }
+
+  /* El header del calendario más grande */
+  .px-3 { padding-left: 14px !important; padding-right: 14px !important; }
+  .py-2 { padding-top: 10px !important; padding-bottom: 10px !important; }
+
+  /* Badges y botones más legibles */
+  button {
+    min-height: 40px;
+  }
 }
