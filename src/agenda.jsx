@@ -1,12 +1,11 @@
 // src/agenda.jsx
-// Librería compartida: servicios, helpers y componentes de calendario
-
 import { useState } from 'react';
 import {
   collection, getDoc, setDoc, getDocs, query, where, orderBy,
   doc, deleteDoc, runTransaction, Timestamp, onSnapshot
 } from 'firebase/firestore';
 import { db } from './firebase/config';
+import { esMobileSeguro } from './utils/mobile';
 
 // ============================================================
 // SERVICIOS DE SLOTS (multi-tenant)
@@ -35,7 +34,6 @@ export async function crearSlot(estudioId, {
   });
 }
 
-// Crear varios slots de un mismo día (mismo instructor/tipo/camas)
 export async function crearSlotsMultiples(estudioId, { fecha, horas, instructor, tipo, camas }) {
   const creados = [];
   const errores = [];
@@ -57,7 +55,6 @@ export async function crearSlotsMultiples(estudioId, { fecha, horas, instructor,
   return { creados, duplicados, errores };
 }
 
-// Lee una sola vez (se usa en MisReservas)
 export async function listarSlotsPorRango(estudioId, desde, hasta) {
   const q = query(
     slotsCol(estudioId),
@@ -74,7 +71,6 @@ export async function listarSlotsPorRango(estudioId, desde, hasta) {
     });
 }
 
-// Suscripción en tiempo real
 export function suscribirSlotsPorRango(estudioId, desde, hasta, callback) {
   const q = query(
     slotsCol(estudioId),
@@ -228,7 +224,7 @@ export function formatoISO(fecha) {
 // ============================================================
 // COMPONENTE: CAMAS DE UN SLOT (vista tabla / desktop)
 // ============================================================
-export function CamasDelSlot({ slot, uid, onReservar, onCancelar }) {
+function CamasDelSlot({ slot, uid, onReservar, onCancelar }) {
   const libres = slot.camas.filter(c => c.estado === 'libre').length;
 
   return (
@@ -274,7 +270,7 @@ export function CamasDelSlot({ slot, uid, onReservar, onCancelar }) {
 // ============================================================
 // COMPONENTE: SLOT EN LISTA (mobile)
 // ============================================================
-export function SlotEnLista({ slot, uid, onReservar, onCancelar }) {
+function SlotEnLista({ slot, uid, onReservar, onCancelar }) {
   const libres = slot.camas.filter(c => c.estado === 'libre').length;
   const total = slot.camas.length;
   const porcentaje = Math.round(((total - libres) / total) * 100);
@@ -360,7 +356,7 @@ export function SlotEnLista({ slot, uid, onReservar, onCancelar }) {
 // ============================================================
 // COMPONENTE: SELECTOR DE HORARIO (multi-selección, mobile)
 // ============================================================
-export function SelectorHorario({ iso, horasExistentes, onCrear, onCancelar }) {
+function SelectorHorario({ iso, horasExistentes, onCrear, onCancelar }) {
   const [seleccionadas, setSeleccionadas] = useState([]);
 
   const toggle = (hora) => {
@@ -431,7 +427,7 @@ export function SelectorHorario({ iso, horasExistentes, onCrear, onCancelar }) {
 // ============================================================
 // COMPONENTE: CALENDARIO EN LISTA (mobile)
 // ============================================================
-export function CalendarioLista({
+function CalendarioLista({
   slots, uid, onReservar, onCancelar, semanaBase,
   esAdmin = false, onCrearSlots
 }) {
@@ -548,12 +544,15 @@ export function CalendarioLista({
 }
 
 // ============================================================
-// COMPONENTE: CALENDARIO (wrapper con vista tabla + lista)
+// COMPONENTE: CALENDARIO (wrapper con detección por User-Agent)
 // ============================================================
 export function CalendarioCamas({
   slots, uid, onReservar, onCancelar, semanaBase, onCambiarSemana,
   esAdmin = false, onCrearSlot
 }) {
+  // 🆕 Detecta mobile por User-Agent (100% confiable)
+  const esCelular = esMobileSeguro();
+
   const lunes = lunesDe(semanaBase);
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i));
   const hoy = formatoISO(new Date());
@@ -592,98 +591,102 @@ export function CalendarioCamas({
         </button>
       </div>
 
-      {/* VISTA DESKTOP */}
-      <div className="hidden md:block overflow-x-auto">
-        <table className="w-full border-collapse min-w-[750px]">
-          <thead>
-            <tr>
-              <th className="sticky left-0 z-20 w-10 md:w-16 border-b border-r bg-gray-50 p-1 md:p-2 text-xs text-gray-500">
-                Hora
-              </th>
-              {dias.map((dia, i) => {
-                const iso = formatoISO(dia);
-                const esHoy = iso === hoy;
-                return (
-                  <th
-                    key={iso}
-                    className={`border-b border-r p-1 md:p-2 text-center ${
-                      esHoy ? 'bg-purple-50' : 'bg-gray-50'
-                    }`}
-                  >
-                    <div
-                      className={`text-[10px] md:text-xs uppercase ${
-                        esHoy ? 'text-purple-600 font-semibold' : 'text-gray-500'
-                      }`}
-                    >
-                      {DIAS[i]}
-                    </div>
-                    <div
-                      className={`text-sm md:text-lg font-bold ${
-                        esHoy ? 'text-purple-700' : 'text-gray-800'
-                      }`}
-                    >
-                      {dia.getDate()}
-                    </div>
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {HORAS.map(hora => (
-              <tr key={hora}>
-                <td className="sticky left-0 z-10 border-b border-r bg-gray-50 p-1 md:p-2 text-[10px] md:text-xs font-medium text-gray-600 text-center whitespace-nowrap">
-                  {hora}
-                </td>
-                {dias.map(dia => {
+      {/* VISTA DESKTOP: TABLA (solo si NO es celular) */}
+      {!esCelular && (
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse min-w-[750px]">
+            <thead>
+              <tr>
+                <th className="sticky left-0 z-20 w-10 md:w-16 border-b border-r bg-gray-50 p-1 md:p-2 text-xs text-gray-500">
+                  Hora
+                </th>
+                {dias.map((dia, i) => {
                   const iso = formatoISO(dia);
-                  const slot = slotMap[`${iso}|${hora}`];
+                  const esHoy = iso === hoy;
                   return (
-                    <td
-                      key={`${iso}|${hora}`}
-                      className="border-b border-r p-0.5 md:p-1 align-top"
+                    <th
+                      key={iso}
+                      className={`border-b border-r p-1 md:p-2 text-center ${
+                        esHoy ? 'bg-purple-50' : 'bg-gray-50'
+                      }`}
                     >
-                      {slot ? (
-                        <CamasDelSlot
-                          slot={slot}
-                          uid={uid}
-                          onReservar={onReservar}
-                          onCancelar={onCancelar}
-                        />
-                      ) : esAdmin ? (
-                        <button
-                          onClick={() => onCrearSlot(iso, hora)}
-                          className="w-full h-12 md:h-14 text-gray-300 hover:text-purple-500 hover:bg-purple-50 rounded text-[10px] md:text-xs transition"
-                          title="Crear slot"
-                        >
-                          + crear
-                        </button>
-                      ) : (
-                        <div className="h-12 md:h-14 text-center text-gray-200 text-xs pt-2 md:pt-3">
-                          —
-                        </div>
-                      )}
-                    </td>
+                      <div
+                        className={`text-[10px] md:text-xs uppercase ${
+                          esHoy ? 'text-purple-600 font-semibold' : 'text-gray-500'
+                        }`}
+                      >
+                        {DIAS[i]}
+                      </div>
+                      <div
+                        className={`text-sm md:text-lg font-bold ${
+                          esHoy ? 'text-purple-700' : 'text-gray-800'
+                        }`}
+                      >
+                        {dia.getDate()}
+                      </div>
+                    </th>
                   );
                 })}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {HORAS.map(hora => (
+                <tr key={hora}>
+                  <td className="sticky left-0 z-10 border-b border-r bg-gray-50 p-1 md:p-2 text-[10px] md:text-xs font-medium text-gray-600 text-center whitespace-nowrap">
+                    {hora}
+                  </td>
+                  {dias.map(dia => {
+                    const iso = formatoISO(dia);
+                    const slot = slotMap[`${iso}|${hora}`];
+                    return (
+                      <td
+                        key={`${iso}|${hora}`}
+                        className="border-b border-r p-0.5 md:p-1 align-top"
+                      >
+                        {slot ? (
+                          <CamasDelSlot
+                            slot={slot}
+                            uid={uid}
+                            onReservar={onReservar}
+                            onCancelar={onCancelar}
+                          />
+                        ) : esAdmin ? (
+                          <button
+                            onClick={() => onCrearSlot(iso, hora)}
+                            className="w-full h-12 md:h-14 text-gray-300 hover:text-purple-500 hover:bg-purple-50 rounded text-[10px] md:text-xs transition"
+                            title="Crear slot"
+                          >
+                            + crear
+                          </button>
+                        ) : (
+                          <div className="h-12 md:h-14 text-center text-gray-200 text-xs pt-2 md:pt-3">
+                            —
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-      {/* VISTA MOBILE */}
-      <div className="md:hidden p-3 bg-gray-50">
-        <CalendarioLista
-          slots={slots}
-          uid={uid}
-          onReservar={onReservar}
-          onCancelar={onCancelar}
-          semanaBase={semanaBase}
-          esAdmin={esAdmin}
-          onCrearSlots={onCrearSlot}
-        />
-      </div>
+      {/* VISTA MOBILE: LISTA (solo si ES celular) */}
+      {esCelular && (
+        <div className="p-3 bg-gray-50">
+          <CalendarioLista
+            slots={slots}
+            uid={uid}
+            onReservar={onReservar}
+            onCancelar={onCancelar}
+            semanaBase={semanaBase}
+            esAdmin={esAdmin}
+            onCrearSlots={onCrearSlot}
+          />
+        </div>
+      )}
 
       {/* LEYENDA */}
       <div className="px-3 py-2 md:px-4 border-t bg-gray-50 flex flex-wrap gap-3 md:gap-4 text-[10px] md:text-xs text-gray-600">
