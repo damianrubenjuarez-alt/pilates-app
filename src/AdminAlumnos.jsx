@@ -8,6 +8,32 @@ import { listarInvitaciones, invitarAlumno, crearInvitacion, enviarEmailInvitaci
 import { ModalConfirm } from './ModalConfirm';
 
 // ============================================================
+// HELPERS DE TELÉFONO (mismos que en auth.jsx)
+// ============================================================
+function normalizarTelefono(tel) {
+  if (!tel) return '';
+  let limpio = tel.replace(/[^\d+]/g, '');
+  if (limpio.startsWith('+54')) limpio = limpio;
+  else if (limpio.startsWith('54')) limpio = '+' + limpio;
+  else if (limpio.startsWith('0')) limpio = '+54' + limpio.slice(1);
+  else if (limpio.length >= 10) limpio = '+549' + limpio;
+  return limpio;
+}
+
+function formatearTelefono(tel) {
+  if (!tel) return '';
+  const match = tel.match(/^\+54(\d)(\d{2})(\d{4})(\d{4})$/);
+  if (match) return `+54 ${match[1]} ${match[2]} ${match[3]}-${match[4]}`;
+  return tel;
+}
+
+function telefonoValido(tel) {
+  if (!tel) return true; // vacío es válido (opcional)
+  const limpio = tel.replace(/[^\d]/g, '');
+  return limpio.length === 10 || (limpio.length === 13 && limpio.startsWith('549'));
+}
+
+// ============================================================
 // PÁGINA: ADMIN · ALUMNOS
 // ============================================================
 export function AdminAlumnos() {
@@ -20,9 +46,10 @@ export function AdminAlumnos() {
   const [tab, setTab] = useState('alumnos');
   const [modalInvitar, setModalInvitar] = useState(false);
 
-  // Estado del modal de confirmación
-  const [confirmData, setConfirmData] = useState(null);
+  // 🆕 Estado para editar teléfono inline
+  const [editandoTelefono, setEditandoTelefono] = useState(null); // { uid, valor }
 
+  const [confirmData, setConfirmData] = useState(null);
   const [busqueda, setBusqueda] = useState('');
   const [filtroInv, setFiltroInv] = useState('todas');
 
@@ -54,6 +81,45 @@ export function AdminAlumnos() {
     const t = setTimeout(() => { setMsg(''); setMsgError(''); }, 4000);
     return () => clearTimeout(t);
   }, [msg, msgError]);
+
+  // ============================================================
+  // 🆕 ACCIONES DE TELÉFONO
+  // ============================================================
+  const empezarEdicionTelefono = (alumno) => {
+    setEditandoTelefono({
+      uid: alumno.uid,
+      valor: alumno.telefono || ''
+    });
+  };
+
+  const cancelarEdicionTelefono = () => {
+    setEditandoTelefono(null);
+  };
+
+  const guardarTelefono = async () => {
+    if (!editandoTelefono) return;
+
+    const valor = editandoTelefono.valor.trim();
+
+    // Validar
+    if (valor && !telefonoValido(valor)) {
+      setMsgError('⚠️ Teléfono inválido. Ejemplo: +54 9 11 1234-5678');
+      return;
+    }
+
+    const telNormalizado = valor ? normalizarTelefono(valor) : '';
+
+    try {
+      await actualizarMiembro(estudio.id, editandoTelefono.uid, {
+        telefono: telNormalizado
+      });
+      setMsg(`✅ Teléfono guardado: ${formatearTelefono(telNormalizado) || 'sin teléfono'}`);
+      setEditandoTelefono(null);
+      cargar();
+    } catch (e) {
+      setMsgError('⚠️ Error al guardar: ' + e.message);
+    }
+  };
 
   // ============================================================
   // ACCIONES (con modal de confirmación)
@@ -363,76 +429,126 @@ export function AdminAlumnos() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {alumnosFiltrados.map(a => (
-                    <tr key={a.uid} className="text-sm">
-                      <td className="px-4 py-3 font-medium">{a.nombre}</td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">{a.email}</td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">
-                        {a.telefono ? (
-                          <a
-                            href={`https://wa.me/${a.telefono.replace(/\D/g, '')}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-green-600 hover:underline"
-                            title="Abrir WhatsApp"
+                  {alumnosFiltrados.map(a => {
+                    const editandoEste = editandoTelefono?.uid === a.uid;
+                    return (
+                      <tr key={a.uid} className="text-sm">
+                        <td className="px-4 py-3 font-medium">{a.nombre}</td>
+                        <td className="px-4 py-3 text-gray-600 text-xs">{a.email}</td>
+                        {/* 🆕 CELDA DE TELÉFONO EDITABLE */}
+                        <td className="px-4 py-3 text-gray-600 text-xs">
+                          {editandoEste ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="tel"
+                                value={editandoTelefono.valor}
+                                onChange={(e) => setEditandoTelefono({
+                                  ...editandoTelefono,
+                                  valor: e.target.value
+                                })}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') guardarTelefono();
+                                  if (e.key === 'Escape') cancelarEdicionTelefono();
+                                }}
+                                placeholder="+54 9 11 1234-5678"
+                                autoFocus
+                                className="w-40 border rounded px-2 py-1 text-xs"
+                              />
+                              <button
+                                onClick={guardarTelefono}
+                                className="text-green-600 hover:text-green-700 font-bold"
+                                title="Guardar"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                onClick={cancelarEdicionTelefono}
+                                className="text-gray-400 hover:text-gray-600 font-bold"
+                                title="Cancelar"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : a.telefono ? (
+                            <div className="flex items-center gap-2">
+                              <a
+                                href={`https://wa.me/${a.telefono.replace(/\D/g, '')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-green-600 hover:underline"
+                                title="Abrir WhatsApp"
+                              >
+                                {formatearTelefono(a.telefono)}
+                              </a>
+                              <button
+                                onClick={() => empezarEdicionTelefono(a)}
+                                className="text-gray-400 hover:text-gray-600"
+                                title="Editar teléfono"
+                              >
+                                ✏️
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => empezarEdicionTelefono(a)}
+                              className="text-xs text-purple-600 hover:underline"
+                            >
+                              + Agregar teléfono
+                            </button>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <select
+                            value={a.rol}
+                            onChange={(e) => cambiarRol(a.uid, e.target.value)}
+                            className="text-xs border rounded px-2 py-1"
                           >
-                            {a.telefono}
-                          </a>
-                        ) : (
-                          <span className="text-gray-400">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <select
-                          value={a.rol}
-                          onChange={(e) => cambiarRol(a.uid, e.target.value)}
-                          className="text-xs border rounded px-2 py-1"
-                        >
-                          <option value="alumno">alumno</option>
-                          <option value="instructor">instructor</option>
-                          <option value="admin">admin</option>
-                        </select>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => sumarClases(a, -1)}
-                            className="w-6 h-6 rounded border hover:bg-gray-100">−</button>
-                          <span className="w-8 text-center font-mono">{a.clasesRestantes || 0}</span>
-                          <button onClick={() => sumarClases(a, 1)}
-                            className="w-6 h-6 rounded border hover:bg-gray-100">+</button>
-                          <button onClick={() => sumarClases(a, 4)}
-                            className="text-xs px-2 py-1 rounded border hover:bg-gray-100">+4</button>
-                          <button onClick={() => sumarClases(a, 8)}
-                            className="text-xs px-2 py-1 rounded border hover:bg-gray-100">+8</button>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-1 rounded ${
-                          a.activo === false
-                            ? 'bg-red-100 text-red-700'
-                            : 'bg-green-100 text-green-700'
-                        }`}>
-                          {a.activo === false ? 'Inactivo' : 'Activo'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right space-x-2">
-                        <button onClick={() => enviarResetPassword(a)}
-                          className="text-xs text-gray-600 hover:underline">
-                          Resetear pass
-                        </button>
-                        <button onClick={() => toggleActivo(a)}
-                          className="text-xs text-gray-600 hover:underline">
-                          {a.activo === false ? 'Activar' : 'Desactivar'}
-                        </button>
-                        {a.uid !== yo?.uid && (
-                          <button onClick={() => quitar(a)}
-                            className="text-xs text-red-600 hover:underline">
-                            Quitar
+                            <option value="alumno">alumno</option>
+                            <option value="instructor">instructor</option>
+                            <option value="admin">admin</option>
+                          </select>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => sumarClases(a, -1)}
+                              className="w-6 h-6 rounded border hover:bg-gray-100">−</button>
+                            <span className="w-8 text-center font-mono">{a.clasesRestantes || 0}</span>
+                            <button onClick={() => sumarClases(a, 1)}
+                              className="w-6 h-6 rounded border hover:bg-gray-100">+</button>
+                            <button onClick={() => sumarClases(a, 4)}
+                              className="text-xs px-2 py-1 rounded border hover:bg-gray-100">+4</button>
+                            <button onClick={() => sumarClases(a, 8)}
+                              className="text-xs px-2 py-1 rounded border hover:bg-gray-100">+8</button>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs px-2 py-1 rounded ${
+                            a.activo === false
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-green-100 text-green-700'
+                          }`}>
+                            {a.activo === false ? 'Inactivo' : 'Activo'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right space-x-2">
+                          <button onClick={() => enviarResetPassword(a)}
+                            className="text-xs text-gray-600 hover:underline">
+                            Resetear pass
                           </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                          <button onClick={() => toggleActivo(a)}
+                            className="text-xs text-gray-600 hover:underline">
+                            {a.activo === false ? 'Activar' : 'Desactivar'}
+                          </button>
+                          {a.uid !== yo?.uid && (
+                            <button onClick={() => quitar(a)}
+                              className="text-xs text-red-600 hover:underline">
+                              Quitar
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -558,7 +674,6 @@ export function AdminAlumnos() {
         />
       )}
 
-      {/* Modal de confirmación */}
       <ModalConfirm
         abierto={!!confirmData}
         titulo={confirmData?.titulo}
