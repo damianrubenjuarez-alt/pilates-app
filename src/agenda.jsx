@@ -53,7 +53,7 @@ export async function crearSlot(estudioId, {
   }
 
   const camasArray = Array.from({ length: camas }, (_, i) => ({
-    numero: i + 1, estado: 'libre', uid: null, nombre: null
+    numero: i + 1, estado: 'libre', uid: null, nombre: null, telefono: null
   }));
 
   return setDoc(ref, {
@@ -125,7 +125,8 @@ export function suscribirSlotsPorRango(estudioId, desde, hasta, callback) {
   );
 }
 
-export async function reservarCama(estudioId, slotId, numeroCama, uid, nombre) {
+// 🆕 Ahora acepta 'telefono' como parámetro opcional
+export async function reservarCama(estudioId, slotId, numeroCama, uid, nombre, telefono = null) {
   return runTransaction(db, async (tx) => {
     const slotRef = doc(db, 'estudios', estudioId, 'slots', slotId);
     const miembroRef = doc(db, 'estudios', estudioId, 'miembros', uid);
@@ -158,7 +159,14 @@ export async function reservarCama(estudioId, slotId, numeroCama, uid, nombre) {
     }
 
     const camasNuevas = [...slot.camas];
-    camasNuevas[camaIdx] = { ...camasNuevas[camaIdx], estado: 'ocupada', uid, nombre };
+    // 🆕 Guardar también el teléfono (del parámetro o del miembro)
+    camasNuevas[camaIdx] = {
+      ...camasNuevas[camaIdx],
+      estado: 'ocupada',
+      uid,
+      nombre,
+      telefono: telefono || miembro.telefono || null
+    };
 
     tx.update(slotRef, { camas: camasNuevas });
     tx.update(miembroRef, { clasesRestantes: (miembro.clasesRestantes || 0) - 1 });
@@ -202,7 +210,7 @@ export async function cancelarCama(estudioId, slotId, numeroCama, uidSolicitante
 
     const camasNuevas = [...slot.camas];
     camasNuevas[camaIdx] = {
-      numero: cama.numero, estado: 'libre', uid: null, nombre: null
+      numero: cama.numero, estado: 'libre', uid: null, nombre: null, telefono: null
     };
 
     tx.update(slotRef, { camas: camasNuevas });
@@ -463,7 +471,6 @@ function CalendarioLista({
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i));
   const hoy = formatoISO(new Date());
 
-  // 🆕 Días expandidos (por defecto: solo "hoy" si está en esta semana)
   const [diasExpandidos, setDiasExpandidos] = useState(() => {
     const hoyEstaEnSemana = dias.some(d => formatoISO(d) === hoy);
     return hoyEstaEnSemana ? { [hoy]: true } : {};
@@ -502,7 +509,6 @@ function CalendarioLista({
               esHoy ? 'ring-2 ring-purple-400' : ''
             }`}
           >
-            {/* HEADER DEL DÍA (clickeable) */}
             <button
               onClick={() => toggleDia(iso)}
               className={`w-full px-3 py-3 flex items-center justify-between text-left transition ${
@@ -512,7 +518,6 @@ function CalendarioLista({
               }`}
             >
               <div className="flex items-center gap-2 min-w-0">
-                {/* Flecha */}
                 <span
                   className={`text-xs transition-transform duration-200 ${
                     expandido ? 'rotate-90' : 'rotate-0'
@@ -521,7 +526,6 @@ function CalendarioLista({
                   ▶
                 </span>
 
-                {/* Fecha */}
                 <span
                   className={`font-semibold text-sm truncate ${
                     esHoy ? 'text-purple-700' : 'text-gray-700'
@@ -531,7 +535,6 @@ function CalendarioLista({
                 </span>
               </div>
 
-              {/* Contador de clases */}
               <span
                 className={`text-xs font-normal shrink-0 ml-2 ${
                   slotsDelDia.length === 0
@@ -545,7 +548,6 @@ function CalendarioLista({
               </span>
             </button>
 
-            {/* CONTENIDO (solo si está expandido) */}
             {expandido && (
               <>
                 {slotsDelDia.length === 0 ? (
@@ -821,10 +823,12 @@ export function Clases() {
   const reservar = async (slotId, numeroCama) => {
     setMsg('');
     try {
+      // 🆕 Pasar el teléfono del miembro
       await reservarCama(
         estudio.id, slotId, numeroCama,
         user.uid,
-        miembro?.nombre || 'Alumno'
+        miembro?.nombre || 'Alumno',
+        miembro?.telefono || null
       );
       setMsg(`✅ Cama ${numeroCama} reservada`);
       recargar();
