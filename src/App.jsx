@@ -1,5 +1,5 @@
 // src/App.jsx
-import { lazy, Suspense } from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, Link } from 'react-router-dom';
 import { EstudioProvider } from './EstudioContext';
 import { Login, Registro } from './auth';
@@ -41,15 +41,99 @@ function CargandoPagina() {
 }
 
 // ============================================================
+// 🆕 ErrorBoundary con auto-reload en ChunkLoadError
+// ============================================================
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, autoReloading: false };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error('ErrorBoundary capturó:', error, info);
+
+    // 🔧 Si es ChunkLoadError → recargar automáticamente (una sola vez)
+    const esChunkError =
+      error?.name === 'ChunkLoadError' ||
+      /Loading chunk \d+ failed/.test(error?.message || '') ||
+      /Failed to fetch dynamically imported module/.test(error?.message || '');
+
+    if (esChunkError) {
+      const yaRecargo = sessionStorage.getItem('chunk_reload_done');
+      if (!yaRecargo) {
+        sessionStorage.setItem('chunk_reload_done', '1');
+        this.setState({ autoReloading: true });
+        window.location.reload();
+      }
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      if (this.state.autoReloading) {
+        return (
+          <div className="min-h-[60vh] flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
+              <p className="text-sm text-gray-500">Actualizando...</p>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="min-h-[60vh] flex items-center justify-center p-4">
+          <div className="max-w-md text-center bg-red-50 border border-red-200 rounded-lg p-6">
+            <h2 className="text-lg font-bold text-red-700 mb-2">
+              Algo salió mal
+            </h2>
+            <p className="text-sm text-red-600 mb-4">
+              {this.state.error?.message || 'Error desconocido'}
+            </p>
+            <button
+              onClick={() => {
+                sessionStorage.removeItem('chunk_reload_done');
+                window.location.reload();
+              }}
+              className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm"
+            >
+              Recargar la página
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ============================================================
+// Wrapper: ErrorBoundary + Suspense
+// ============================================================
+function ConSuspense({ children }) {
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={<CargandoPagina />}>
+        {children}
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
+
+// ============================================================
 // Layout de estudio (Navbar + contenido)
 // ============================================================
 function LayoutEstudio() {
   return (
     <EstudioProvider>
       <Navbar />
-      <Suspense fallback={<CargandoPagina />}>
+      <ConSuspense>
         <Outlet />
-      </Suspense>
+      </ConSuspense>
     </EstudioProvider>
   );
 }
@@ -83,27 +167,19 @@ export default function App() {
         {/* Página de inicio sin estudio */}
         <Route path="/" element={<Landing />} />
         <Route path="/registro-admin" element={
-          <Suspense fallback={<CargandoPagina />}>
-            <RegistroAdminLazy />
-          </Suspense>
+          <ConSuspense><RegistroAdminLazy /></ConSuspense>
         } />
         <Route path="/login-admin" element={
-          <Suspense fallback={<CargandoPagina />}>
-            <LoginAdminLazy />
-          </Suspense>
+          <ConSuspense><LoginAdminLazy /></ConSuspense>
         } />
         <Route path="/crear-estudio" element={
-          <Suspense fallback={<CargandoPagina />}>
-            <CrearEstudioLazy />
-          </Suspense>
+          <ConSuspense><CrearEstudioLazy /></ConSuspense>
         } />
 
         {/* Panel de súper admin */}
         <Route path="/super-admin" element={
           <RutaSuperAdmin>
-            <Suspense fallback={<CargandoPagina />}>
-              <SuperAdminLazy />
-            </Suspense>
+            <ConSuspense><SuperAdminLazy /></ConSuspense>
           </RutaSuperAdmin>
         } />
 
@@ -114,55 +190,51 @@ export default function App() {
           <Route path="login" element={<Login />} />
           <Route path="registro" element={<Registro />} />
           <Route path="recuperar-password" element={
-            <Suspense fallback={<CargandoPagina />}>
-              <RecuperarPasswordLazy />
-            </Suspense>
+            <ConSuspense><RecuperarPasswordLazy /></ConSuspense>
           } />
           <Route path="invitacion/:token" element={
-            <Suspense fallback={<CargandoPagina />}>
-              <AceptarInvitacionLazy />
-            </Suspense>
+            <ConSuspense><AceptarInvitacionLazy /></ConSuspense>
           } />
 
           <Route path="clases" element={
             <RutaProtegida>
-              <ClasesLazy />
+              <ConSuspense><ClasesLazy /></ConSuspense>
             </RutaProtegida>
           } />
 
           <Route path="mis-reservas" element={
             <RutaProtegida>
-              <MisReservasLazy />
+              <ConSuspense><MisReservasLazy /></ConSuspense>
             </RutaProtegida>
           } />
 
           <Route path="admin" element={
             <RutaProtegida soloInstructor>
-              <AdminLazy />
+              <ConSuspense><AdminLazy /></ConSuspense>
             </RutaProtegida>
           } />
 
           <Route path="admin/alumnos" element={
             <RutaProtegida soloAdmin>
-              <AdminAlumnosLazy />
+              <ConSuspense><AdminAlumnosLazy /></ConSuspense>
             </RutaProtegida>
           } />
 
           <Route path="admin/estadisticas" element={
             <RutaProtegida soloAdmin>
-              <EstadisticasLazy />
+              <ConSuspense><EstadisticasLazy /></ConSuspense>
             </RutaProtegida>
           } />
 
           <Route path="admin/recordatorios" element={
             <RutaProtegida soloAdmin>
-              <RecordatoriosLazy />
+              <ConSuspense><RecordatoriosLazy /></ConSuspense>
             </RutaProtegida>
           } />
 
           <Route path="admin/configuracion" element={
             <RutaProtegida soloAdmin>
-              <ConfiguracionEstudioLazy />
+              <ConSuspense><ConfiguracionEstudioLazy /></ConSuspense>
             </RutaProtegida>
           } />
 
