@@ -453,7 +453,7 @@ function SelectorHorario({ iso, horasExistentes, onCrear, onCancelar }) {
 }
 
 // ============================================================
-// COMPONENTE: CALENDARIO EN LISTA (mobile)
+// COMPONENTE: CALENDARIO EN LISTA (mobile con ACORDEÓN)
 // ============================================================
 function CalendarioLista({
   slots, uid, onReservar, onCancelar, semanaBase,
@@ -462,6 +462,19 @@ function CalendarioLista({
   const lunes = lunesDe(semanaBase);
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i));
   const hoy = formatoISO(new Date());
+
+  // 🆕 Días expandidos (por defecto: solo "hoy" si está en esta semana)
+  const [diasExpandidos, setDiasExpandidos] = useState(() => {
+    const hoyEstaEnSemana = dias.some(d => formatoISO(d) === hoy);
+    return hoyEstaEnSemana ? { [hoy]: true } : {};
+  });
+
+  const toggleDia = (iso) => {
+    setDiasExpandidos(prev => ({
+      ...prev,
+      [iso]: !prev[iso]
+    }));
+  };
 
   const [diaSeleccionando, setDiaSeleccionando] = useState(null);
 
@@ -472,7 +485,7 @@ function CalendarioLista({
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {dias.map((dia, i) => {
         const iso = formatoISO(dia);
         const esHoy = iso === hoy;
@@ -480,6 +493,7 @@ function CalendarioLista({
         const horasExistentes = slotsDelDia.map(s => s.hora);
         const fechaLarga = `${DIAS[i]} ${dia.getDate()} de ${MESES[dia.getMonth()]}`;
         const mostrandoSelector = diaSeleccionando === iso;
+        const expandido = diasExpandidos[iso] || false;
 
         return (
           <div
@@ -488,79 +502,114 @@ function CalendarioLista({
               esHoy ? 'ring-2 ring-purple-400' : ''
             }`}
           >
-            <div
-              className={`px-3 py-2 border-b font-semibold text-sm ${
+            {/* HEADER DEL DÍA (clickeable) */}
+            <button
+              onClick={() => toggleDia(iso)}
+              className={`w-full px-3 py-3 flex items-center justify-between text-left transition ${
                 esHoy
-                  ? 'bg-purple-50 text-purple-700'
-                  : 'bg-gray-50 text-gray-700'
+                  ? 'bg-purple-50 hover:bg-purple-100'
+                  : 'bg-gray-50 hover:bg-gray-100'
               }`}
             >
-              {esHoy ? '🔥 Hoy · ' : ''}{fechaLarga}
-              <span className="ml-2 text-xs font-normal text-gray-500">
-                ({slotsDelDia.length} {slotsDelDia.length === 1 ? 'clase' : 'clases'})
-              </span>
-            </div>
+              <div className="flex items-center gap-2 min-w-0">
+                {/* Flecha */}
+                <span
+                  className={`text-xs transition-transform duration-200 ${
+                    expandido ? 'rotate-90' : 'rotate-0'
+                  } ${esHoy ? 'text-purple-600' : 'text-gray-500'}`}
+                >
+                  ▶
+                </span>
 
-            {slotsDelDia.length === 0 ? (
-              <div className="px-3 py-4 text-center text-gray-400 text-sm">
-                {esAdmin ? (
-                  mostrandoSelector ? (
-                    <SelectorHorario
-                      iso={iso}
-                      horasExistentes={horasExistentes}
-                      onCrear={(fecha, horas) => {
-                        onCrearSlots(fecha, horas);
-                        setDiaSeleccionando(null);
-                      }}
-                      onCancelar={() => setDiaSeleccionando(null)}
-                    />
-                  ) : (
-                    <button
-                      onClick={() => setDiaSeleccionando(iso)}
-                      className="text-purple-600 hover:underline"
-                    >
-                      + Agregar horarios
-                    </button>
-                  )
-                ) : (
-                  'Sin clases este día'
-                )}
+                {/* Fecha */}
+                <span
+                  className={`font-semibold text-sm truncate ${
+                    esHoy ? 'text-purple-700' : 'text-gray-700'
+                  }`}
+                >
+                  {esHoy ? '🔥 Hoy · ' : ''}{fechaLarga}
+                </span>
               </div>
-            ) : (
-              <>
-                <div className="divide-y">
-                  {slotsDelDia.map(slot => (
-                    <SlotEnLista
-                      key={slot.id}
-                      slot={slot}
-                      uid={uid}
-                      onReservar={onReservar}
-                      onCancelar={onCancelar}
-                    />
-                  ))}
-                </div>
 
-                {esAdmin && (
-                  <div className="px-3 py-2 border-t bg-gray-50 text-center">
-                    {mostrandoSelector ? (
-                      <SelectorHorario
-                        iso={iso}
-                        horasExistentes={horasExistentes}
-                        onCrear={(fecha, horas) => {
-                          onCrearSlots(fecha, horas);
-                          setDiaSeleccionando(null);
-                        }}
-                        onCancelar={() => setDiaSeleccionando(null)}
-                      />
+              {/* Contador de clases */}
+              <span
+                className={`text-xs font-normal shrink-0 ml-2 ${
+                  slotsDelDia.length === 0
+                    ? 'text-gray-400'
+                    : esHoy
+                    ? 'text-purple-600'
+                    : 'text-gray-500'
+                }`}
+              >
+                {slotsDelDia.length} {slotsDelDia.length === 1 ? 'clase' : 'clases'}
+              </span>
+            </button>
+
+            {/* CONTENIDO (solo si está expandido) */}
+            {expandido && (
+              <>
+                {slotsDelDia.length === 0 ? (
+                  <div className="px-3 py-4 text-center text-gray-400 text-sm border-t">
+                    {esAdmin ? (
+                      mostrandoSelector ? (
+                        <SelectorHorario
+                          iso={iso}
+                          horasExistentes={horasExistentes}
+                          onCrear={(fecha, horas) => {
+                            onCrearSlots(fecha, horas);
+                            setDiaSeleccionando(null);
+                          }}
+                          onCancelar={() => setDiaSeleccionando(null)}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => setDiaSeleccionando(iso)}
+                          className="text-purple-600 hover:underline"
+                        >
+                          + Agregar horarios
+                        </button>
+                      )
                     ) : (
-                      <button
-                        onClick={() => setDiaSeleccionando(iso)}
-                        className="text-xs text-purple-600 hover:underline"
-                      >
-                        + Agregar más horarios
-                      </button>
+                      'Sin clases este día'
                     )}
                   </div>
+                ) : (
+                  <>
+                    <div className="divide-y border-t">
+                      {slotsDelDia.map(slot => (
+                        <SlotEnLista
+                          key={slot.id}
+                          slot={slot}
+                          uid={uid}
+                          onReservar={onReservar}
+                          onCancelar={onCancelar}
+                        />
+                      ))}
+                    </div>
+
+                    {esAdmin && (
+                      <div className="px-3 py-2 border-t bg-gray-50 text-center">
+                        {mostrandoSelector ? (
+                          <SelectorHorario
+                            iso={iso}
+                            horasExistentes={horasExistentes}
+                            onCrear={(fecha, horas) => {
+                              onCrearSlots(fecha, horas);
+                              setDiaSeleccionando(null);
+                            }}
+                            onCancelar={() => setDiaSeleccionando(null)}
+                          />
+                        ) : (
+                          <button
+                            onClick={() => setDiaSeleccionando(iso)}
+                            className="text-xs text-purple-600 hover:underline"
+                          >
+                            + Agregar más horarios
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}
@@ -578,7 +627,6 @@ export function CalendarioCamas({
   slots, uid, onReservar, onCancelar, semanaBase, onCambiarSemana,
   esAdmin = false, onCrearSlot
 }) {
-  // 🆕 Detecta mobile por User-Agent + ancho
   const esCelular = useEsMobile();
 
   const lunes = lunesDe(semanaBase);
@@ -701,7 +749,7 @@ export function CalendarioCamas({
         </div>
       )}
 
-      {/* VISTA MOBILE: LISTA */}
+      {/* VISTA MOBILE: LISTA CON ACORDEÓN */}
       {esCelular && (
         <div className="p-3 bg-gray-50">
           <CalendarioLista

@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* ============================================================
-   FIX: forzar ancho mobile aunque el viewport esté mal
+   FIX: forzar ancho mobile
    ============================================================ */
 html, body {
   width: 100%;
