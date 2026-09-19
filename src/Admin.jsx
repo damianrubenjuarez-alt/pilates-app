@@ -6,7 +6,7 @@ import {
   lunesDe, sumarDias, formatoISO, CalendarioCamas
 } from './agenda';
 
-export function Clases() {
+export function Admin() {
   const { estudio, miembro, user, recargar } = useEstudio();
   const [slots, setSlots] = useState([]);
   const [msg, setMsg] = useState('');
