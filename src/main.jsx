@@ -3,18 +3,19 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 
-// 🔧 FIX: garantizar el meta viewport correcto en el DOM
-(function ensureViewport() {
-  let meta = document.querySelector('meta[name="viewport"]');
-  if (!meta) {
-    meta = document.createElement('meta');
-    meta.setAttribute('name', 'viewport');
-    document.head.appendChild(meta);
-  }
-  meta.setAttribute(
-    'content',
-    'width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover'
-  );
+// 🚨 FIX AGRESIVO: forzar viewport mobile
+(function forceViewport() {
+  // 1. Eliminar cualquier meta viewport existente
+  document.querySelectorAll('meta[name="viewport"]').forEach(m => m.remove());
+
+  // 2. Crear uno nuevo con los valores correctos
+  const meta = document.createElement('meta');
+  meta.setAttribute('name', 'viewport');
+  meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover');
+  document.head.appendChild(meta);
+
+  // 3. Log de debug
+  console.log('🔧 Viewport forzado. Ancho actual:', window.innerWidth, 'DPR:', window.devicePixelRatio);
 })();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
