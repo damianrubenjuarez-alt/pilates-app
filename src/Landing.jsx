@@ -1,8 +1,9 @@
 // src/Landing.jsx
 import { Link } from 'react-router-dom';
+import { WhatsAppButton } from './components/WhatsAppButton';
 import {
   Calendar, Users, Mail, CreditCard, BarChart3, Building2,
-  Check, ArrowRight, Sparkles, Shield, Zap, Clock
+  Check, ArrowRight, Sparkles
 } from 'lucide-react';
 
 export function Landing() {
@@ -152,7 +153,6 @@ export function Landing() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-6 items-start">
-            {/* TRIAL */}
             <PlanCard
               nombre="Trial"
               precio="Gratis"
@@ -169,7 +169,6 @@ export function Landing() {
               href="/registro-admin"
             />
 
-            {/* BÁSICO */}
             <PlanCard
               nombre="Básico"
               precio="USD 25"
@@ -189,7 +188,6 @@ export function Landing() {
               popular
             />
 
-            {/* PRO */}
             <PlanCard
               nombre="Pro"
               precio="USD 45"
@@ -266,6 +264,14 @@ export function Landing() {
           </p>
         </div>
       </footer>
+
+      {/* ============================================================ */}
+      {/* BOTÓN FLOTANTE DE WHATSAPP CON AGENTE IA */}
+      {/* ============================================================ */}
+      <WhatsAppButton 
+        negocioId="pilates-app" 
+        nombre="Pilates App" 
+      />
     </div>
   );
 }
@@ -300,7 +306,6 @@ function PlanCard({
 
   return (
     <div className={`relative rounded-2xl bg-white p-8 ${borde}`}>
-      {/* Badge */}
       {popular && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-xs font-bold px-4 py-1 rounded-full">
           ⭐ MÁS POPULAR

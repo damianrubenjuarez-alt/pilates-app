@@ -5,6 +5,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from './firebase/config';
 import { useEstudio } from './EstudioContext';
 import { planVigente } from './estudios';
+import { WhatsAppButton } from './components/WhatsAppButton';
 import { Copy, Check } from 'lucide-react';
 
 export function Navbar() {
@@ -76,13 +77,7 @@ export function Navbar() {
       )}
 
       <nav className="bg-white border-b">
-
-        {/* ============================================================ */}
-        {/* FILA 1: LOGO + INFO DEL USUARIO                                */}
-        {/* ============================================================ */}
         <div className="px-3 md:px-6 py-2 md:py-3 flex justify-between items-center gap-2">
-
-          {/* Logo + nombre + botón copiar link */}
           <div className="flex items-center gap-1 min-w-0 flex-1">
             <Link to={`/${slug}/clases`} className="flex items-center gap-2 min-w-0">
               {estudio.branding?.logoUrl ? (
@@ -104,7 +99,6 @@ export function Navbar() {
               </span>
             </Link>
 
-            {/* 👇 NUEVO: botón copiar link del estudio */}
             <button
               onClick={copiarLink}
               title="Copiar link del estudio"
@@ -118,7 +112,6 @@ export function Navbar() {
             </button>
           </div>
 
-          {/* Info del usuario */}
           <div className="flex gap-2 items-center flex-shrink-0">
             {esAlumno && (
               <span className="text-xs md:text-sm text-gray-600 hidden sm:inline">
@@ -148,24 +141,17 @@ export function Navbar() {
           </div>
         </div>
 
-        {/* ============================================================ */}
-        {/* FILA 2: ENLACES DE NAVEGACIÓN                                  */}
-        {/* ============================================================ */}
         <div className="px-3 md:px-6 pb-2 md:pb-3 flex flex-wrap gap-x-3 md:gap-x-4 gap-y-1.5 md:gap-y-2 items-center border-t border-gray-100 pt-2 md:pt-3">
-
-          {/* Clases */}
           <Link to={`/${slug}/clases`} className="text-xs md:text-sm hover:underline">
             Clases
           </Link>
 
-          {/* Mis reservas: solo alumnos */}
           {esAlumno && (
             <Link to={`/${slug}/mis-reservas`} className="text-xs md:text-sm hover:underline">
               Mis reservas
             </Link>
           )}
 
-          {/* Calendario: admin e instructor */}
           {(esAdmin || esInstructor) && (
             <Link
               to={`/${slug}/admin`}
@@ -175,7 +161,7 @@ export function Navbar() {
               Calendario
             </Link>
           )}
-                    {/* Alumnos: SOLO admin */}
+
           {esAdmin && (
             <Link
               to={`/${slug}/admin/alumnos`}
@@ -186,7 +172,6 @@ export function Navbar() {
             </Link>
           )}
 
-          {/* Estadísticas: SOLO admin */}
           {esAdmin && (
             <Link
               to={`/${slug}/admin/estadisticas`}
@@ -197,7 +182,6 @@ export function Navbar() {
             </Link>
           )}
 
-          {/* Recordatorios: SOLO admin */}
           {esAdmin && (
             <Link
               to={`/${slug}/admin/recordatorios`}
@@ -208,7 +192,6 @@ export function Navbar() {
             </Link>
           )}
 
-          {/* Configuración: SOLO admin */}
           {esAdmin && (
             <Link
               to={`/${slug}/admin/configuracion`}
@@ -220,6 +203,16 @@ export function Navbar() {
           )}
         </div>
       </nav>
+
+      {/* ============================================================ */}
+      {/* BOTÓN FLOTANTE DE WHATSAPP CON AGENTE IA */}
+      {/* ============================================================ */}
+      {estudio && (
+        <WhatsAppButton 
+          negocioId={estudio.slug} 
+          nombre={estudio.nombre} 
+        />
+      )}
     </>
   );
 }
