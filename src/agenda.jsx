@@ -36,6 +36,45 @@ function useEsMobile() {
 }
 
 // ============================================================
+// 🆕 FUNCIÓN: Abrir WhatsApp a todos los alumnos de un slot
+// ============================================================
+function recordarATodos(slot, estudioNombre = 'tu estudio') {
+  // Filtrar camas ocupadas con teléfono
+  const ocupadas = slot.camas.filter(c => c.estado === 'ocupada' && c.telefono);
+
+  if (ocupadas.length === 0) {
+    alert('No hay alumnos con teléfono registrado en esta clase.\n\nPediles que agreguen su teléfono desde el panel de alumnos.');
+    return;
+  }
+
+  // Confirmación
+  const confirmar = confirm(
+    `¿Abrir WhatsApp para ${ocupadas.length} alumno${ocupadas.length > 1 ? 's' : ''}?\n\n` +
+    `Horario: ${slot.hora} · ${slot.instructor}`
+  );
+  if (!confirmar) return;
+
+  // Abrir ventanas con delay de 600ms
+  ocupadas.forEach((cama, index) => {
+    setTimeout(() => {
+      const mensaje = encodeURIComponent(
+        `Hola ${cama.nombre}, te recordamos tu clase de Pilates hoy a las ${slot.hora} en ${estudioNombre}. ¡Te esperamos!`
+      );
+      const telLimpio = cama.telefono.replace(/\D/g, '');
+      window.open(`https://wa.me/${telLimpio}?text=${mensaje}`, '_blank');
+    }, index * 600);
+  });
+
+  // Aviso al admin
+  setTimeout(() => {
+    alert(
+      `✅ Se abrieron ${ocupadas.length} ventana${ocupadas.length > 1 ? 's' : ''} de WhatsApp.\n\n` +
+      `👉 Si Chrome bloqueó alguna, permití popups para esta web y volvé a intentar.`
+    );
+  }, ocupadas.length * 600 + 500);
+}
+
+// ============================================================
 // SERVICIOS DE SLOTS (multi-tenant)
 // ============================================================
 const slotsCol = (estudioId) =>
@@ -125,7 +164,6 @@ export function suscribirSlotsPorRango(estudioId, desde, hasta, callback) {
   );
 }
 
-// 🆕 Ahora acepta 'telefono' como parámetro opcional
 export async function reservarCama(estudioId, slotId, numeroCama, uid, nombre, telefono = null) {
   return runTransaction(db, async (tx) => {
     const slotRef = doc(db, 'estudios', estudioId, 'slots', slotId);
@@ -159,7 +197,6 @@ export async function reservarCama(estudioId, slotId, numeroCama, uid, nombre, t
     }
 
     const camasNuevas = [...slot.camas];
-    // 🆕 Guardar también el teléfono (del parámetro o del miembro)
     camasNuevas[camaIdx] = {
       ...camasNuevas[camaIdx],
       estado: 'ocupada',
@@ -260,8 +297,10 @@ function formatoISO(fecha) {
 // ============================================================
 // COMPONENTE: CAMAS DE UN SLOT (vista tabla / desktop)
 // ============================================================
-function CamasDelSlot({ slot, uid, onReservar, onCancelar }) {
+function CamasDelSlot({ slot, uid, onReservar, onCancelar, esAdmin = false, estudioNombre = '' }) {
   const libres = slot.camas.filter(c => c.estado === 'libre').length;
+  const ocupadas = slot.camas.filter(c => c.estado === 'ocupada').length;
+  const ocupadasConTel = slot.camas.filter(c => c.estado === 'ocupada' && c.telefono).length;
 
   return (
     <div className="space-y-0.5 md:space-y-1">
@@ -299,6 +338,26 @@ function CamasDelSlot({ slot, uid, onReservar, onCancelar }) {
           );
         })}
       </div>
+
+      {/* 🆕 Botón "Recordar a todos" (solo admin) */}
+      {esAdmin && ocupadas > 0 && (
+        <button
+          onClick={() => recordarATodos(slot, estudioNombre)}
+          disabled={ocupadasConTel === 0}
+          className={`w-full mt-1 rounded text-[8px] md:text-[9px] font-medium py-1 transition ${
+            ocupadasConTel === 0
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'
+          }`}
+          title={
+            ocupadasConTel === 0
+              ? 'Ningún alumno tiene teléfono registrado'
+              : `Abrir WhatsApp a ${ocupadasConTel} alumno${ocupadasConTel > 1 ? 's' : ''}`
+          }
+        >
+          📱 {ocupadasConTel}/{ocupadas} con tel.
+        </button>
+      )}
     </div>
   );
 }
@@ -306,10 +365,12 @@ function CamasDelSlot({ slot, uid, onReservar, onCancelar }) {
 // ============================================================
 // COMPONENTE: SLOT EN LISTA (mobile)
 // ============================================================
-function SlotEnLista({ slot, uid, onReservar, onCancelar }) {
+function SlotEnLista({ slot, uid, onReservar, onCancelar, esAdmin = false, estudioNombre = '' }) {
   const libres = slot.camas.filter(c => c.estado === 'libre').length;
   const total = slot.camas.length;
   const porcentaje = Math.round(((total - libres) / total) * 100);
+  const ocupadas = slot.camas.filter(c => c.estado === 'ocupada').length;
+  const ocupadasConTel = slot.camas.filter(c => c.estado === 'ocupada' && c.telefono).length;
 
   return (
     <div className="p-3">
@@ -385,6 +446,26 @@ function SlotEnLista({ slot, uid, onReservar, onCancelar }) {
           );
         })}
       </div>
+
+      {/* 🆕 Botón "Recordar a todos" (solo admin) */}
+      {esAdmin && ocupadas > 0 && (
+        <button
+          onClick={() => recordarATodos(slot, estudioNombre)}
+          disabled={ocupadasConTel === 0}
+          className={`w-full mt-3 rounded text-xs font-medium py-2 transition ${
+            ocupadasConTel === 0
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'
+          }`}
+          title={
+            ocupadasConTel === 0
+              ? 'Ningún alumno tiene teléfono registrado'
+              : `Abrir WhatsApp a ${ocupadasConTel} alumno${ocupadasConTel > 1 ? 's' : ''}`
+          }
+        >
+          📱 Recordar a todos ({ocupadasConTel}/{ocupadas} con teléfono)
+        </button>
+      )}
     </div>
   );
 }
@@ -465,7 +546,7 @@ function SelectorHorario({ iso, horasExistentes, onCrear, onCancelar }) {
 // ============================================================
 function CalendarioLista({
   slots, uid, onReservar, onCancelar, semanaBase,
-  esAdmin = false, onCrearSlots
+  esAdmin = false, onCrearSlots, estudioNombre = ''
 }) {
   const lunes = lunesDe(semanaBase);
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i));
@@ -585,6 +666,8 @@ function CalendarioLista({
                           uid={uid}
                           onReservar={onReservar}
                           onCancelar={onCancelar}
+                          esAdmin={esAdmin}
+                          estudioNombre={estudioNombre}
                         />
                       ))}
                     </div>
@@ -627,7 +710,7 @@ function CalendarioLista({
 // ============================================================
 export function CalendarioCamas({
   slots, uid, onReservar, onCancelar, semanaBase, onCambiarSemana,
-  esAdmin = false, onCrearSlot
+  esAdmin = false, onCrearSlot, estudioNombre = ''
 }) {
   const esCelular = useEsMobile();
 
@@ -727,6 +810,8 @@ export function CalendarioCamas({
                             uid={uid}
                             onReservar={onReservar}
                             onCancelar={onCancelar}
+                            esAdmin={esAdmin}
+                            estudioNombre={estudioNombre}
                           />
                         ) : esAdmin ? (
                           <button
@@ -762,6 +847,7 @@ export function CalendarioCamas({
             semanaBase={semanaBase}
             esAdmin={esAdmin}
             onCrearSlots={onCrearSlot}
+            estudioNombre={estudioNombre}
           />
         </div>
       )}
@@ -823,7 +909,6 @@ export function Clases() {
   const reservar = async (slotId, numeroCama) => {
     setMsg('');
     try {
-      // 🆕 Pasar el teléfono del miembro
       await reservarCama(
         estudio.id, slotId, numeroCama,
         user.uid,
@@ -882,6 +967,7 @@ export function Clases() {
         onCancelar={cancelar}
         semanaBase={semana}
         onCambiarSemana={cambiarSemana}
+        estudioNombre={estudio?.nombre || ''}
       />
     </div>
   );
@@ -1119,6 +1205,7 @@ export function Admin() {
         onCambiarSemana={cambiarSemana}
         esAdmin
         onCrearSlot={abrirModal}
+        estudioNombre={estudio?.nombre || ''}
       />
 
       <div className="mt-6 bg-white border rounded-lg">
