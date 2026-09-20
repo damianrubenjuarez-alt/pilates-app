@@ -4,7 +4,9 @@ import { EstudioProvider } from './EstudioContext';
 import { Login, Registro } from './auth';
 import { Navbar } from './Navbar';
 import { RutaProtegida } from './RutaProtegida';
-import { Clases, Admin, MisReservas } from './agenda';
+import { Clases } from './Clases';
+import { Admin } from './Admin';
+import { MisReservas } from './MisReservas';
 import { SuperAdmin } from './SuperAdmin';
 import { RutaSuperAdmin } from './RutaSuperAdmin';
 import { AdminAlumnos } from './AdminAlumnos';
@@ -56,22 +58,18 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Página de inicio sin estudio */}
         <Route path="/" element={<Landing />} />
         <Route path="/registro-admin" element={<RegistroAdmin />} />
         <Route path="/login-admin" element={<LoginAdmin />} />
         <Route path="/crear-estudio" element={<CrearEstudio />} />
 
-        {/* Panel de súper admin (SIN slug, sin estudio) */}
         <Route path="/super-admin" element={
           <RutaSuperAdmin>
             <SuperAdmin />
           </RutaSuperAdmin>
         } />
 
-                {/* Rutas dentro de un estudio (con slug) */}
         <Route path="/:slug" element={<LayoutEstudio />}>
-          {/* Redirigir el índice del estudio a /clases */}
           <Route index element={<Navigate to="clases" replace />} />
 
           <Route path="login" element={<Login />} />
@@ -91,43 +89,39 @@ export default function App() {
             </RutaProtegida>
           } />
 
-          {/* Calendario admin: accesible a admin E instructor */}
           <Route path="admin" element={
             <RutaProtegida soloInstructor>
               <Admin />
             </RutaProtegida>
           } />
 
-          {/* Gestión de alumnos: solo admin */}
           <Route path="admin/alumnos" element={
             <RutaProtegida soloAdmin>
               <AdminAlumnos />
             </RutaProtegida>
           } />
-            <Route path="admin/estadisticas" element={
+
+          <Route path="admin/estadisticas" element={
             <RutaProtegida soloAdmin>
-            <Estadisticas />
-           </RutaProtegida>
+              <Estadisticas />
+            </RutaProtegida>
           } />
-          {/* Recordatorios: solo admin */}
+
           <Route path="admin/recordatorios" element={
             <RutaProtegida soloAdmin>
               <Recordatorios />
             </RutaProtegida>
           } />
 
-          {/* Configuración: solo admin */}
           <Route path="admin/configuracion" element={
             <RutaProtegida soloAdmin>
               <ConfiguracionEstudio />
             </RutaProtegida>
           } />
 
-          {/* Ruta no encontrada dentro del estudio → al home del estudio */}
           <Route path="*" element={<Navigate to="clases" replace />} />
         </Route>
 
-        {/* Ruta global 404 */}
         <Route path="*" element={<NoEncontrado />} />
       </Routes>
     </BrowserRouter>
