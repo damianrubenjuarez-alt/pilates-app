@@ -16,6 +16,7 @@ import {
   crearInvitacion,
   enviarEmailInvitacion
 } from './invitaciones';
+import { RUBROS_DISPONIBLES, ETIQUETAS_POR_RUBRO } from './etiquetas';
 
 // ============================================================
 // PÁGINA: SÚPER ADMIN
@@ -27,8 +28,8 @@ export function SuperAdmin() {
   const [msg, setMsg] = useState('');
   const [msgError, setMsgError] = useState('');
   const [modalCrear, setModalCrear] = useState(false);
-  const [reenviando, setReenviando] = useState(null); // slug del estudio que se está reenviando
-  const [confirmReenvio, setConfirmReenvio] = useState(null); // datos del estudio a reenviar
+  const [reenviando, setReenviando] = useState(null);
+  const [confirmReenvio, setConfirmReenvio] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -105,13 +106,9 @@ export function SuperAdmin() {
     setMsgError('');
 
     try {
-      // 1. Buscar invitación de admin pendiente
       const inv = await obtenerInvitacionAdminPendiente(estudio.id);
 
       if (!inv) {
-        // No hay invitación pendiente, creamos una nueva
-        // Pero necesitamos el email del admin. ¿De dónde lo sacamos?
-        // Como no lo tenemos guardado, mostramos un mensaje de error.
         setMsgError(
           `⚠️ No hay una invitación pendiente para "${estudio.nombre}". ` +
           `Pedile al admin que se registre y volvé a invitarlo desde el panel del estudio.`
@@ -120,7 +117,6 @@ export function SuperAdmin() {
         return;
       }
 
-      // 2. Reenviar el email con el token existente
       await enviarEmailInvitacion({
         token: inv.token,
         email: inv.email,
@@ -189,6 +185,7 @@ export function SuperAdmin() {
                 <tr className="text-left text-xs text-gray-600 uppercase">
                   <th className="px-4 py-3">Estudio</th>
                   <th className="px-4 py-3">Slug</th>
+                  <th className="px-4 py-3">Rubro</th>
                   <th className="px-4 py-3">Plan</th>
                   <th className="px-4 py-3">Vence</th>
                   <th className="px-4 py-3">Miembros</th>
@@ -204,6 +201,11 @@ export function SuperAdmin() {
                       <code className="text-xs bg-gray-100 px-2 py-1 rounded">
                         /{e.slug}
                       </code>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded">
+                        {e.rubro || 'pilates'}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <select
@@ -272,7 +274,6 @@ export function SuperAdmin() {
         />
       )}
 
-      {/* Modal de confirmación para reenviar */}
       {confirmReenvio && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-md space-y-4">
@@ -311,6 +312,7 @@ export function SuperAdmin() {
 // ============================================================
 function ModalCrearEstudio({ superAdminEmail, onCerrar, onCreado }) {
   const [nombre, setNombre] = useState('');
+  const [rubro, setRubro] = useState('pilates');
   const [adminEmail, setAdminEmail] = useState('');
   const [adminNombre, setAdminNombre] = useState('');
   const [error, setError] = useState('');
@@ -325,6 +327,7 @@ function ModalCrearEstudio({ superAdminEmail, onCerrar, onCreado }) {
       // 1. Crear el estudio (sin admin todavía)
       const { estudioId, slug } = await crearEstudioSinAdmin({
         nombre,
+        rubro,
         creadoPor: superAdminEmail
       });
 
@@ -340,7 +343,6 @@ function ModalCrearEstudio({ superAdminEmail, onCerrar, onCreado }) {
           }
         );
       } catch (emailErr) {
-        // El estudio se creó pero el email falló
         setError(
           `El estudio se creó (/${slug}) pero no se pudo enviar el email: ` +
           `${emailErr.message}. ` +
@@ -388,6 +390,26 @@ function ModalCrearEstudio({ superAdminEmail, onCerrar, onCreado }) {
           />
           <p className="text-xs text-gray-400 mt-1">
             Se va a generar la URL automáticamente
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-xs text-gray-600 mb-1 font-medium">
+            Tipo de negocio
+          </label>
+          <select
+            value={rubro}
+            onChange={(e) => setRubro(e.target.value)}
+            className="w-full border rounded px-3 py-2"
+          >
+            {RUBROS_DISPONIBLES.map(r => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-400 mt-1">
+            Define cómo se llaman las cosas (clases vs turnos, etc.)
           </p>
         </div>
 
