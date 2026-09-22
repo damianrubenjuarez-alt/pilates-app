@@ -184,6 +184,15 @@ export function Navbar() {
               💰 Caja
             </Link>
           )}
+          {esAdmin && (
+            <Link
+              to={`/${slug}/admin/agente`}
+              className="text-xs md:text-sm font-semibold hover:underline"
+              style={{ color }}
+            >
+              🤖 Agente IA
+            </Link>
+          )}
 
           {esAdmin && (
             <Link
