@@ -145,7 +145,7 @@ export function AdminAgente() {
         </div>
       )}
 
-      {/* CARD: Estado */}
+      {/* CARD: Estado del agente */}
       <div className="bg-white border rounded-lg p-5 mb-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
@@ -174,7 +174,9 @@ export function AdminAgente() {
 
         {config.activo && (
           <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
-            <p className="text-xs text-purple-700 font-medium mb-2">🔗 Link público del chat</p>
+            <p className="text-xs text-purple-700 font-medium mb-2">
+              🔗 Link público del chat
+            </p>
             <div className="flex gap-2 items-center">
               <code className="flex-1 text-xs bg-white px-2 py-1.5 rounded border truncate">
                 {linkPublico}
@@ -186,11 +188,14 @@ export function AdminAgente() {
                 {linkCopiado ? '✓ Copiado' : 'Copiar'}
               </button>
             </div>
+            <p className="text-xs text-purple-600 mt-2">
+              Compartilo con tus {et.clientes.toLowerCase()} por WhatsApp, Instagram o tu web
+            </p>
           </div>
         )}
       </div>
 
-      {/* CARD: Identidad */}
+      {/* CARD: Identidad del agente (con prompt avanzado adentro) */}
       <div className="bg-white border rounded-lg p-5 mb-6 space-y-4">
         <h2 className="font-bold text-lg flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-purple-600" />
@@ -257,6 +262,82 @@ export function AdminAgente() {
             className="w-full border rounded px-3 py-2 text-sm"
           />
         </div>
+
+        {/* PROMPT AVANZADO — dentro de identidad */}
+        <div className="border-t pt-4 mt-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Settings className="w-4 h-4 text-purple-600" />
+            <h3 className="font-bold text-base">Prompt avanzado</h3>
+            <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">
+              Opcional
+            </span>
+          </div>
+
+          <p className="text-sm text-gray-600 mb-3">
+            Solo si querés control total sobre cómo se comporta el agente.
+            Si lo dejás desactivado, se usa el prompt automático basado en tu
+            configuración de arriba.
+          </p>
+
+          <label className="flex items-center gap-2 cursor-pointer mb-3">
+            <input
+              type="checkbox"
+              checked={config.usarPromptPersonalizado || false}
+              onChange={(e) => setConfig({ ...config, usarPromptPersonalizado: e.target.checked })}
+              className="w-4 h-4 accent-purple-600"
+            />
+            <span className="text-sm text-gray-700 font-medium">
+              Usar prompt personalizado
+            </span>
+          </label>
+
+          {config.usarPromptPersonalizado && (
+            <>
+              <div className="mb-3">
+                <button
+                  onClick={() => setMostrarVariables(!mostrarVariables)}
+                  className="text-xs text-purple-600 hover:underline flex items-center gap-1"
+                >
+                  <Lightbulb className="w-3 h-3" />
+                  {mostrarVariables ? 'Ocultar' : 'Ver'} variables disponibles
+                </button>
+
+                {mostrarVariables && (
+                  <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded text-xs space-y-1">
+                    <p className="font-medium text-blue-800 mb-2">
+                      💡 Podés usar estas variables en tu prompt:
+                    </p>
+                    {VARIABLES_PROMPT.map(v => (
+                      <div key={v.var} className="flex gap-2 text-blue-700">
+                        <code className="bg-white px-1 rounded font-mono">{v.var}</code>
+                        <span className="text-blue-600">→ {v.desc}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <textarea
+                value={config.promptPersonalizado || ''}
+                onChange={(e) => setConfig({ ...config, promptPersonalizado: e.target.value })}
+                placeholder={`Sos {nombre}, el asistente virtual de {estudio}.\n\nTu tono es cercano y profesional. Usás emojis con moderación.\n\nAyudás a los {clientes} a reservar {citas} y responder dudas.\n\nSiempre saludás con el nombre del estudio...`}
+                rows={14}
+                className="w-full border rounded px-3 py-2 text-sm font-mono"
+              />
+
+              <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800 flex items-start gap-2">
+                <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium mb-1">Importante:</p>
+                  <p>
+                    Las herramientas del agente (reservar, cancelar, etc.) se agregan
+                    automáticamente al final. No hace falta que las menciones.
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* CARD: Servicios */}
@@ -272,7 +353,9 @@ export function AdminAgente() {
         </div>
 
         {(config.servicios || []).length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-4">No hay servicios cargados</p>
+          <p className="text-sm text-gray-400 text-center py-4">
+            No hay servicios cargados
+          </p>
         ) : (
           <div className="space-y-2">
             {config.servicios.map((s, idx) => (
@@ -322,7 +405,9 @@ export function AdminAgente() {
         </div>
 
         {(config.faq || []).length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-4">No hay preguntas cargadas</p>
+          <p className="text-sm text-gray-400 text-center py-4">
+            No hay preguntas cargadas
+          </p>
         ) : (
           <div className="space-y-3">
             {config.faq.map((f, idx) => (
@@ -351,82 +436,6 @@ export function AdminAgente() {
               </div>
             ))}
           </div>
-        )}
-      </div>
-
-      {/* CARD: Prompt avanzado */}
-      <div className="bg-white border rounded-lg p-5 mb-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Settings className="w-5 h-5 text-purple-600" />
-          <h2 className="font-bold text-lg">Prompt avanzado</h2>
-          <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">
-            Opcional
-          </span>
-        </div>
-
-        <p className="text-sm text-gray-600 mb-4">
-          Solo si querés control total sobre cómo se comporta el agente.
-          Si lo dejás desactivado, se usa el prompt automático basado en tu
-          configuración de arriba.
-        </p>
-
-        <label className="flex items-center gap-2 cursor-pointer mb-4">
-          <input
-            type="checkbox"
-            checked={config.usarPromptPersonalizado || false}
-            onChange={(e) => setConfig({ ...config, usarPromptPersonalizado: e.target.checked })}
-            className="w-4 h-4 accent-purple-600"
-          />
-          <span className="text-sm text-gray-700 font-medium">
-            Usar prompt personalizado
-          </span>
-        </label>
-
-        {config.usarPromptPersonalizado && (
-          <>
-            <div className="mb-3">
-              <button
-                onClick={() => setMostrarVariables(!mostrarVariables)}
-                className="text-xs text-purple-600 hover:underline flex items-center gap-1"
-              >
-                <Lightbulb className="w-3 h-3" />
-                {mostrarVariables ? 'Ocultar' : 'Ver'} variables disponibles
-              </button>
-
-              {mostrarVariables && (
-                <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded text-xs space-y-1">
-                  <p className="font-medium text-blue-800 mb-2">
-                    💡 Podés usar estas variables en tu prompt:
-                  </p>
-                  {VARIABLES_PROMPT.map(v => (
-                    <div key={v.var} className="flex gap-2 text-blue-700">
-                      <code className="bg-white px-1 rounded font-mono">{v.var}</code>
-                      <span className="text-blue-600">→ {v.desc}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <textarea
-              value={config.promptPersonalizado || ''}
-              onChange={(e) => setConfig({ ...config, promptPersonalizado: e.target.value })}
-              placeholder={`Sos {nombre}, el asistente virtual de {estudio}.\n\nTu tono es cercano y profesional. Usás emojis con moderación.\n\nAyudás a los {clientes} a reservar {citas} y responder dudas.\n\nSiempre saludás con el nombre del estudio...`}
-              rows={14}
-              className="w-full border rounded px-3 py-2 text-sm font-mono"
-            />
-
-            <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800 flex items-start gap-2">
-              <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium mb-1">Importante:</p>
-                <p>
-                  Las herramientas del agente (reservar, cancelar, etc.) se agregan
-                  automáticamente al final. No hace falta que las menciones.
-                </p>
-              </div>
-            </div>
-          </>
         )}
       </div>
 
