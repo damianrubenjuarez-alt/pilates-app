@@ -68,3 +68,5 @@ pnpm-debug.log*
 .parcel-cache/
 .vite/  
 *.code-workspace 
+
+pilates-fuctions/

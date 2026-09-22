@@ -171,6 +171,15 @@ export function Navbar() {
               Alumnos
             </Link>
           )}
+          {esAdmin && (
+            <Link
+              to={`/${slug}/admin/caja`}
+              className="text-xs md:text-sm font-semibold hover:underline"
+              style={{ color }}
+            >
+            💰 Caja
+            </Link>
+          )}
 
           {esAdmin && (
             <Link
