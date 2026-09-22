@@ -100,6 +100,7 @@ export function Clases() {
         semanaBase={semana}
         onCambiarSemana={cambiarSemana}
         estudioNombre={estudio?.nombre || ''}
+        estudioId={estudio?.id || ''}
       />
     </div>
   );

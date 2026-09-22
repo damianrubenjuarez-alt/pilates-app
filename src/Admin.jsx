@@ -236,6 +236,7 @@ export function Admin() {
         esAdmin
         onCrearSlot={abrirModal}
         estudioNombre={estudio?.nombre || ''}
+        estudioId={estudio?.id || ''}
       />
 
       <div className="mt-6 bg-white border rounded-lg">

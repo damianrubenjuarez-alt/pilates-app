@@ -1,11 +1,7 @@
-// src/recordatorios.js
+// src/recordatoriosApi.js
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-import emailjs from '@emailjs/browser';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from './firebase/config';
-
-const EMAILJS_SERVICE_ID  = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_RECORDATORIO;
-const EMAILJS_PUBLIC_KEY  = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
 // ============================================================
 // HELPERS DE FECHA
@@ -92,32 +88,29 @@ export async function obtenerInfoAlumnos(estudioId, uids) {
 }
 
 // ============================================================
-// ENVIAR UN RECORDATORIO
+// ENVIAR UN RECORDATORIO (VÍA CLOUD FUNCTION → RESEND)
 // ============================================================
 export async function enviarRecordatorio({
   email, nombre, estudioNombre, fecha, hora, instructor, tipo, cama
 }) {
-  if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
-    throw new Error('Faltan las credenciales de EmailJS. Revisá tu .env.local');
+  try {
+    const functions = getFunctions();
+    const enviar = httpsCallable(functions, 'enviarRecordatorioManual');
+    const result = await enviar({
+      email,
+      nombre,
+      estudioNombre,
+      fecha: formatoFechaLinda(fecha),
+      hora,
+      instructor,
+      tipo,
+      cama
+    });
+    return result.data;
+  } catch (err) {
+    console.error('Error enviando recordatorio:', err);
+    throw new Error('No se pudo enviar el email: ' + err.message);
   }
-
-  const templateParams = {
-    to_email: email,
-    to_name: nombre,
-    estudio_nombre: estudioNombre,
-    fecha: formatoFechaLinda(fecha),
-    hora,
-    instructor,
-    tipo,
-    cama
-  };
-
-  return emailjs.send(
-    EMAILJS_SERVICE_ID,
-    EMAILJS_TEMPLATE_ID,
-    templateParams,
-    EMAILJS_PUBLIC_KEY
-  );
 }
 
 // ============================================================
@@ -169,7 +162,7 @@ export async function enviarRecordatoriosDelDia(estudio, fechaISO, onProgreso) {
       onProgreso({ actual: i + 1, total: reservas.length, enviados, errores });
     }
 
-    // Pausa para no saturar EmailJS (límite: 200 emails/min en plan free)
+    // Pausa entre envíos (evita saturar Resend)
     await new Promise(resolve => setTimeout(resolve, 300));
   }
 

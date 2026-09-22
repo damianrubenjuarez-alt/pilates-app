@@ -5,6 +5,9 @@ import {
   doc, deleteDoc, runTransaction, Timestamp, onSnapshot
 } from 'firebase/firestore';
 import { db } from './firebase/config';
+import {
+  anotarseEnLista, estoyEnLista, contarEnLista, notificarListaEspera
+} from './listaEspera';
 
 // ============================================================
 // HOOK: detectar mobile
@@ -206,7 +209,7 @@ export async function reservarCama(estudioId, slotId, numeroCama, uid, nombre, t
 }
 
 export async function cancelarCama(estudioId, slotId, numeroCama, uidSolicitante, esAdmin = false, limiteHoras = 0) {
-  return runTransaction(db, async (tx) => {
+  await runTransaction(db, async (tx) => {
     const slotRef = doc(db, 'estudios', estudioId, 'slots', slotId);
     const slotSnap = await tx.get(slotRef);
     if (!slotSnap.exists()) throw new Error('Slot no encontrado');
@@ -252,6 +255,13 @@ export async function cancelarCama(estudioId, slotId, numeroCama, uidSolicitante
       tx.update(miembroRef, { clasesRestantes: (m.clasesRestantes || 0) + 1 });
     }
   });
+
+  // ✅ NUEVO: Notificar al primero de la lista de espera
+  try {
+    await notificarListaEspera(estudioId, slotId);
+  } catch (e) {
+    console.warn('Error notificando lista de espera:', e);
+  }
 }
 
 export async function eliminarSlot(estudioId, slotId) {
@@ -292,10 +302,37 @@ export function formatoISO(fecha) {
 // ============================================================
 // COMPONENTE: CAMAS DE UN SLOT (vista tabla / desktop)
 // ============================================================
-function CamasDelSlot({ slot, uid, onReservar, onCancelar, esAdmin = false, estudioNombre = '' }) {
+function CamasDelSlot({ slot, uid, onReservar, onCancelar, esAdmin = false, estudioNombre = '', estudioId = '' }) {
   const libres = slot.camas.filter(c => c.estado === 'libre').length;
   const ocupadas = slot.camas.filter(c => c.estado === 'ocupada').length;
   const ocupadasConTel = slot.camas.filter(c => c.estado === 'ocupada' && c.telefono).length;
+
+  const [enLista, setEnLista] = useState(false);
+  const [cargandoLista, setCargandoLista] = useState(false);
+
+  useEffect(() => {
+    if (!uid || libres > 0 || !estudioId) return;
+    estoyEnLista(estudioId, slot.id, uid).then(setEnLista).catch(() => {});
+  }, [uid, slot.id, libres, estudioId]);
+
+  const anotarme = async () => {
+    if (!uid) return;
+    setCargandoLista(true);
+    try {
+      await anotarseEnLista(estudioId, slot.id, {
+        uid,
+        nombre: slot.camas.find(c => c.uid === uid)?.nombre || 'Alumno',
+        email: '',
+        telefono: ''
+      });
+      setEnLista(true);
+      alert('✅ Te anotaste en la lista de espera');
+    } catch (err) {
+      alert('⚠️ ' + err.message);
+    } finally {
+      setCargandoLista(false);
+    }
+  };
 
   return (
     <div className="space-y-0.5 md:space-y-1">
@@ -343,13 +380,23 @@ function CamasDelSlot({ slot, uid, onReservar, onCancelar, esAdmin = false, estu
               ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
               : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'
           }`}
-          title={
-            ocupadasConTel === 0
-              ? 'Ningún alumno tiene teléfono registrado'
-              : `Abrir WhatsApp a ${ocupadasConTel} alumno${ocupadasConTel > 1 ? 's' : ''}`
-          }
         >
           📱 {ocupadasConTel}/{ocupadas} con tel.
+        </button>
+      )}
+
+      {/* Botón de lista de espera cuando está lleno */}
+      {!esAdmin && uid && libres === 0 && (
+        <button
+          onClick={anotarme}
+          disabled={enLista || cargandoLista}
+          className={`w-full mt-1 rounded text-[8px] md:text-[9px] font-medium py-1 transition ${
+            enLista
+              ? 'bg-yellow-100 text-yellow-700 cursor-not-allowed'
+              : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100 border border-yellow-200'
+          }`}
+        >
+          {enLista ? '⏳ En espera' : cargandoLista ? '...' : '⏳ Anotarme'}
         </button>
       )}
     </div>
@@ -359,31 +406,52 @@ function CamasDelSlot({ slot, uid, onReservar, onCancelar, esAdmin = false, estu
 // ============================================================
 // COMPONENTE: SLOT EN LISTA (mobile)
 // ============================================================
-function SlotEnLista({ slot, uid, onReservar, onCancelar, esAdmin = false, estudioNombre = '' }) {
+function SlotEnLista({ slot, uid, onReservar, onCancelar, esAdmin = false, estudioNombre = '', estudioId = '' }) {
   const libres = slot.camas.filter(c => c.estado === 'libre').length;
   const total = slot.camas.length;
   const porcentaje = Math.round(((total - libres) / total) * 100);
   const ocupadas = slot.camas.filter(c => c.estado === 'ocupada').length;
   const ocupadasConTel = slot.camas.filter(c => c.estado === 'ocupada' && c.telefono).length;
 
+  const [enLista, setEnLista] = useState(false);
+  const [cargandoLista, setCargandoLista] = useState(false);
+
+  useEffect(() => {
+    if (!uid || libres > 0 || !estudioId) return;
+    estoyEnLista(estudioId, slot.id, uid).then(setEnLista).catch(() => {});
+  }, [uid, slot.id, libres, estudioId]);
+
+  const anotarme = async () => {
+    if (!uid) return;
+    setCargandoLista(true);
+    try {
+      await anotarseEnLista(estudioId, slot.id, {
+        uid,
+        nombre: 'Alumno',
+        email: '',
+        telefono: ''
+      });
+      setEnLista(true);
+      alert('✅ Te anotaste en la lista de espera');
+    } catch (err) {
+      alert('⚠️ ' + err.message);
+    } finally {
+      setCargandoLista(false);
+    }
+  };
+
   return (
     <div className="p-3">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className="text-base font-bold text-gray-800">
-            {slot.hora}
-          </span>
-          <span className="text-xs text-gray-500">
-            {slot.instructor} · {slot.tipo}
-          </span>
+          <span className="text-base font-bold text-gray-800">{slot.hora}</span>
+          <span className="text-xs text-gray-500">{slot.instructor} · {slot.tipo}</span>
         </div>
         <span
           className={`text-xs px-2 py-0.5 rounded-full ${
-            libres === 0
-              ? 'bg-red-100 text-red-700'
-              : libres <= 2
-              ? 'bg-yellow-100 text-yellow-700'
-              : 'bg-green-100 text-green-700'
+            libres === 0 ? 'bg-red-100 text-red-700'
+            : libres <= 2 ? 'bg-yellow-100 text-yellow-700'
+            : 'bg-green-100 text-green-700'
           }`}
         >
           {libres}/{total} libres
@@ -393,11 +461,9 @@ function SlotEnLista({ slot, uid, onReservar, onCancelar, esAdmin = false, estud
       <div className="h-1 bg-gray-100 rounded-full mb-3 overflow-hidden">
         <div
           className={`h-full transition-all ${
-            porcentaje === 100
-              ? 'bg-red-500'
-              : porcentaje >= 75
-              ? 'bg-yellow-500'
-              : 'bg-green-500'
+            porcentaje === 100 ? 'bg-red-500'
+            : porcentaje >= 75 ? 'bg-yellow-500'
+            : 'bg-green-500'
           }`}
           style={{ width: `${porcentaje}%` }}
         />
@@ -412,27 +478,16 @@ function SlotEnLista({ slot, uid, onReservar, onCancelar, esAdmin = false, estud
               key={cama.numero}
               onClick={() => {
                 if (esMia) {
-                  if (confirm('¿Cancelar esta reserva?')) {
-                    onCancelar(slot.id, cama.numero);
-                  }
+                  if (confirm('¿Cancelar esta reserva?')) onCancelar(slot.id, cama.numero);
                 } else if (!ocupada && uid) {
                   onReservar(slot.id, cama.numero);
                 }
               }}
               disabled={(ocupada && !esMia) || (!uid && !esMia)}
-              title={
-                esMia
-                  ? `Tu cama ${cama.numero} - clic para cancelar`
-                  : ocupada
-                  ? `Ocupada por ${cama.nombre || 'alguien'}`
-                  : `Cama ${cama.numero} libre`
-              }
               className={`h-9 rounded text-xs font-bold flex items-center justify-center transition ${
-                esMia
-                  ? 'bg-green-500 text-white hover:bg-green-600'
-                  : ocupada
-                  ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                  : 'bg-white border-2 border-gray-200 text-gray-500 hover:bg-purple-50 hover:border-purple-400 active:bg-purple-100'
+                esMia ? 'bg-green-500 text-white hover:bg-green-600'
+                : ocupada ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                : 'bg-white border-2 border-gray-200 text-gray-500 hover:bg-purple-50 hover:border-purple-400'
               }`}
             >
               {esMia ? '✓' : ocupada ? '×' : cama.numero}
@@ -450,13 +505,23 @@ function SlotEnLista({ slot, uid, onReservar, onCancelar, esAdmin = false, estud
               ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
               : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'
           }`}
-          title={
-            ocupadasConTel === 0
-              ? 'Ningún alumno tiene teléfono registrado'
-              : `Abrir WhatsApp a ${ocupadasConTel} alumno${ocupadasConTel > 1 ? 's' : ''}`
-          }
         >
-          📱 Recordar a todos ({ocupadasConTel}/{ocupadas} con teléfono)
+          📱 Recordar a todos ({ocupadasConTel}/{ocupadas})
+        </button>
+      )}
+
+      {/* Botón de lista de espera cuando está lleno */}
+      {!esAdmin && uid && libres === 0 && (
+        <button
+          onClick={anotarme}
+          disabled={enLista || cargandoLista}
+          className={`w-full mt-3 rounded text-xs font-medium py-2 transition ${
+            enLista
+              ? 'bg-yellow-100 text-yellow-700 cursor-not-allowed'
+              : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100 border border-yellow-200'
+          }`}
+        >
+          {enLista ? '⏳ Ya estás en la lista' : cargandoLista ? 'Anotando...' : '⏳ Anotarme en lista de espera'}
         </button>
       )}
     </div>
@@ -480,9 +545,7 @@ function SelectorHorario({ iso, horasExistentes, onCrear, onCancelar }) {
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-gray-600 font-medium">
-        Elegí uno o más horarios:
-      </p>
+      <p className="text-xs text-gray-600 font-medium">Elegí uno o más horarios:</p>
       <div className="grid grid-cols-4 gap-1">
         {HORAS.map(h => {
           const existe = horasExistentes.includes(h);
@@ -492,13 +555,12 @@ function SelectorHorario({ iso, horasExistentes, onCrear, onCancelar }) {
               key={h}
               onClick={() => toggle(h)}
               disabled={existe}
-              title={existe ? 'Ya existe un slot en este horario' : ''}
               className={`px-2 py-1 rounded text-xs border transition ${
                 existe
                   ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed line-through'
                   : seleccionado
                   ? 'bg-purple-600 text-white border-purple-600'
-                  : 'bg-white text-gray-600 border-gray-300 hover:bg-purple-50 hover:border-purple-400 active:bg-purple-100'
+                  : 'bg-white text-gray-600 border-gray-300 hover:bg-purple-50'
               }`}
             >
               {h}
@@ -508,28 +570,19 @@ function SelectorHorario({ iso, horasExistentes, onCrear, onCancelar }) {
       </div>
 
       <div className="flex items-center justify-between gap-2 pt-1">
-        <button
-          onClick={onCancelar}
-          className="text-xs text-gray-500 hover:underline"
-        >
+        <button onClick={onCancelar} className="text-xs text-gray-500 hover:underline">
           Cancelar
         </button>
         <button
           onClick={() => onCrear(iso, seleccionadas)}
           disabled={seleccionadas.length === 0}
-          className="px-3 py-1 rounded text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-3 py-1 rounded text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
         >
           {seleccionadas.length === 0
             ? 'Elegí horarios'
             : `Crear ${seleccionadas.length} ${seleccionadas.length === 1 ? 'slot' : 'slots'}`}
         </button>
       </div>
-
-      {seleccionadas.length > 0 && (
-        <p className="text-[10px] text-gray-500">
-          Seleccionados: {seleccionadas.join(', ')}
-        </p>
-      )}
     </div>
   );
 }
@@ -539,7 +592,7 @@ function SelectorHorario({ iso, horasExistentes, onCrear, onCancelar }) {
 // ============================================================
 function CalendarioLista({
   slots, uid, onReservar, onCancelar, semanaBase,
-  esAdmin = false, onCrearSlots, estudioNombre = ''
+  esAdmin = false, onCrearSlots, estudioNombre = '', estudioId = ''
 }) {
   const lunes = lunesDe(semanaBase);
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i));
@@ -551,10 +604,7 @@ function CalendarioLista({
   });
 
   const toggleDia = (iso) => {
-    setDiasExpandidos(prev => ({
-      ...prev,
-      [iso]: !prev[iso]
-    }));
+    setDiasExpandidos(prev => ({ ...prev, [iso]: !prev[iso] }));
   };
 
   const [diaSeleccionando, setDiaSeleccionando] = useState(null);
@@ -586,9 +636,7 @@ function CalendarioLista({
             <button
               onClick={() => toggleDia(iso)}
               className={`w-full px-3 py-3 flex items-center justify-between text-left transition ${
-                esHoy
-                  ? 'bg-purple-50 hover:bg-purple-100'
-                  : 'bg-gray-50 hover:bg-gray-100'
+                esHoy ? 'bg-purple-50 hover:bg-purple-100' : 'bg-gray-50 hover:bg-gray-100'
               }`}
             >
               <div className="flex items-center gap-2 min-w-0">
@@ -599,7 +647,6 @@ function CalendarioLista({
                 >
                   ▶
                 </span>
-
                 <span
                   className={`font-semibold text-sm truncate ${
                     esHoy ? 'text-purple-700' : 'text-gray-700'
@@ -608,14 +655,11 @@ function CalendarioLista({
                   {esHoy ? '🔥 Hoy · ' : ''}{fechaLarga}
                 </span>
               </div>
-
               <span
                 className={`text-xs font-normal shrink-0 ml-2 ${
                   slotsDelDia.length === 0
                     ? 'text-gray-400'
-                    : esHoy
-                    ? 'text-purple-600'
-                    : 'text-gray-500'
+                    : esHoy ? 'text-purple-600' : 'text-gray-500'
                 }`}
               >
                 {slotsDelDia.length} {slotsDelDia.length === 1 ? 'clase' : 'clases'}
@@ -661,6 +705,7 @@ function CalendarioLista({
                           onCancelar={onCancelar}
                           esAdmin={esAdmin}
                           estudioNombre={estudioNombre}
+                          estudioId={estudioId}
                         />
                       ))}
                     </div>
@@ -703,7 +748,7 @@ function CalendarioLista({
 // ============================================================
 export function CalendarioCamas({
   slots, uid, onReservar, onCancelar, semanaBase, onCambiarSemana,
-  esAdmin = false, onCrearSlot, estudioNombre = ''
+  esAdmin = false, onCrearSlot, estudioNombre = '', estudioId = ''
 }) {
   const esCelular = useEsMobile();
 
@@ -722,7 +767,6 @@ export function CalendarioCamas({
 
   return (
     <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
-
       <div className="flex items-center justify-between gap-2 px-3 py-2 md:px-4 md:py-3 border-b bg-gray-50">
         <button
           onClick={() => onCambiarSemana(-7)}
@@ -745,7 +789,6 @@ export function CalendarioCamas({
         </button>
       </div>
 
-      {/* VISTA DESKTOP: TABLA */}
       {!esCelular && (
         <div className="overflow-x-auto">
           <table className="w-full border-collapse min-w-[750px]">
@@ -764,18 +807,10 @@ export function CalendarioCamas({
                         esHoy ? 'bg-purple-50' : 'bg-gray-50'
                       }`}
                     >
-                      <div
-                        className={`text-[10px] md:text-xs uppercase ${
-                          esHoy ? 'text-purple-600 font-semibold' : 'text-gray-500'
-                        }`}
-                      >
+                      <div className={`text-[10px] md:text-xs uppercase ${esHoy ? 'text-purple-600 font-semibold' : 'text-gray-500'}`}>
                         {DIAS[i]}
                       </div>
-                      <div
-                        className={`text-sm md:text-lg font-bold ${
-                          esHoy ? 'text-purple-700' : 'text-gray-800'
-                        }`}
-                      >
+                      <div className={`text-sm md:text-lg font-bold ${esHoy ? 'text-purple-700' : 'text-gray-800'}`}>
                         {dia.getDate()}
                       </div>
                     </th>
@@ -793,10 +828,7 @@ export function CalendarioCamas({
                     const iso = formatoISO(dia);
                     const slot = slotMap[`${iso}|${hora}`];
                     return (
-                      <td
-                        key={`${iso}|${hora}`}
-                        className="border-b border-r p-0.5 md:p-1 align-top"
-                      >
+                      <td key={`${iso}|${hora}`} className="border-b border-r p-0.5 md:p-1 align-top">
                         {slot ? (
                           <CamasDelSlot
                             slot={slot}
@@ -805,19 +837,17 @@ export function CalendarioCamas({
                             onCancelar={onCancelar}
                             esAdmin={esAdmin}
                             estudioNombre={estudioNombre}
+                            estudioId={estudioId}
                           />
                         ) : esAdmin ? (
                           <button
                             onClick={() => onCrearSlot(iso, hora)}
                             className="w-full h-12 md:h-14 text-gray-300 hover:text-purple-500 hover:bg-purple-50 rounded text-[10px] md:text-xs transition"
-                            title="Crear slot"
                           >
                             + crear
                           </button>
                         ) : (
-                          <div className="h-12 md:h-14 text-center text-gray-200 text-xs pt-2 md:pt-3">
-                            —
-                          </div>
+                          <div className="h-12 md:h-14 text-center text-gray-200 text-xs pt-2 md:pt-3">—</div>
                         )}
                       </td>
                     );
@@ -829,7 +859,6 @@ export function CalendarioCamas({
         </div>
       )}
 
-      {/* VISTA MOBILE: LISTA CON ACORDEÓN */}
       {esCelular && (
         <div className="p-3 bg-gray-50">
           <CalendarioLista
@@ -841,11 +870,11 @@ export function CalendarioCamas({
             esAdmin={esAdmin}
             onCrearSlots={onCrearSlot}
             estudioNombre={estudioNombre}
+            estudioId={estudioId}
           />
         </div>
       )}
 
-      {/* LEYENDA */}
       <div className="px-3 py-2 md:px-4 border-t bg-gray-50 flex flex-wrap gap-3 md:gap-4 text-[10px] md:text-xs text-gray-600">
         <span className="flex items-center gap-1">
           <span className="w-2.5 h-2.5 md:w-3 md:h-3 rounded border border-gray-300 bg-white inline-block"></span>

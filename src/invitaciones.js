@@ -1,15 +1,10 @@
 // src/invitaciones.js
 import {
   collection, doc, getDoc, getDocs, setDoc, updateDoc,
-  runTransaction, Timestamp, serverTimestamp
+  Timestamp, serverTimestamp
 } from 'firebase/firestore';
-import emailjs from '@emailjs/browser';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from './firebase/config';
-import { unirUsuarioAEstudio, unirUsuarioAEstudioTx } from './estudios';
-
-const EMAILJS_SERVICE_ID  = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-const EMAILJS_PUBLIC_KEY  = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
 // ============================================================
 // CREAR INVITACIÓN
@@ -50,33 +45,27 @@ export async function crearInvitacion(estudioId, {
 }
 
 // ============================================================
-// ENVIAR EMAIL
+// ENVIAR EMAIL VÍA CLOUD FUNCTION (RESEND)
 // ============================================================
 export async function enviarEmailInvitacion({
   token, email, nombre, estudioNombre, estudioSlug, adminNombre
 }) {
-  if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
-    throw new Error('Faltan las credenciales de EmailJS. Revisá tu .env.local');
+  try {
+    const functions = getFunctions();
+    const enviar = httpsCallable(functions, 'enviarInvitacion');
+    const result = await enviar({
+      token,
+      email,
+      nombre,
+      estudioNombre,
+      estudioSlug,
+      adminNombre
+    });
+    return result.data;
+  } catch (err) {
+    console.error('Error enviando invitación:', err);
+    throw new Error('No se pudo enviar el email: ' + err.message);
   }
-
-  const appUrl = window.location.origin;
-  const link = `${appUrl}/${estudioSlug}/invitacion/${token}`;
-
-  const templateParams = {
-    to_email: email,
-    to_name: nombre || email.split('@')[0],
-    estudio_nombre: estudioNombre,
-    admin_nombre: adminNombre || 'El equipo',
-    link,
-    content_type: 'text/html'
-  };
-
-  return emailjs.send(
-    EMAILJS_SERVICE_ID,
-    EMAILJS_TEMPLATE_ID,
-    templateParams,
-    EMAILJS_PUBLIC_KEY
-  );
 }
 
 // ============================================================
@@ -153,10 +142,9 @@ export async function listarInvitaciones(estudioId) {
 }
 
 // ============================================================
-// ACEPTAR INVITACIÓN (VERSIÓN SIN TRANSACCIÓN GLOBAL)
+// ACEPTAR INVITACIÓN
 // ============================================================
 export async function aceptarInvitacion(estudioId, token, uid, email, datosExtra = {}) {
-  // 1. Leer la invitación
   const invRef = doc(db, 'estudios', estudioId, 'invitaciones', token);
   const invSnap = await getDoc(invRef);
 
@@ -164,7 +152,6 @@ export async function aceptarInvitacion(estudioId, token, uid, email, datosExtra
 
   const data = invSnap.data();
 
-  // 2. Validaciones
   if (data.estado === 'aceptada') {
     throw new Error('Esta invitación ya fue usada');
   }
@@ -176,7 +163,7 @@ export async function aceptarInvitacion(estudioId, token, uid, email, datosExtra
   const expira = data.expiraEn?.toDate?.() || new Date(data.expiraEn);
   if (expira < new Date()) throw new Error('Esta invitación expiró');
 
-  // 3. Unir al usuario al estudio (usa su propia transacción interna)
+  const { unirUsuarioAEstudio } = await import('./estudios');
   await unirUsuarioAEstudio(estudioId, uid, {
     nombre: datosExtra.nombre || data.nombre,
     email: data.email,
@@ -185,7 +172,6 @@ export async function aceptarInvitacion(estudioId, token, uid, email, datosExtra
     clasesIniciales: data.clasesIniciales || 0
   });
 
-  // 4. Marcar la invitación como aceptada (operación separada)
   await updateDoc(invRef, {
     estado: 'aceptada',
     aceptadaEn: serverTimestamp(),
@@ -196,28 +182,15 @@ export async function aceptarInvitacion(estudioId, token, uid, email, datosExtra
 }
 
 // ============================================================
-// CREAR INVITACIÓN SIN ENVIAR EMAIL
-// ============================================================
-export async function crearInvitacionSinEmail(estudioId, {
-  email, nombre, telefono = '', clasesIniciales = 0, rol = 'alumno', creadaPor
-}) {
-  const { token } = await crearInvitacion(estudioId, {
-    email, nombre, telefono, clasesIniciales, rol, creadaPor
-  });
-  return { token };
-}
-
-// ============================================================
 // OBTENER INVITACIÓN DE ADMIN PENDIENTE
 // ============================================================
 export async function obtenerInvitacionAdminPendiente(estudioId) {
   if (!estudioId) return null;
   const ref = collection(db, 'estudios', estudioId, 'invitaciones');
   const snap = await getDocs(ref);
-  
+
   const invitaciones = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  
-  // Buscar la primera invitación de admin que esté pendiente y no expirada
+
   const ahora = new Date();
   return invitaciones.find(inv => {
     if (inv.rol !== 'admin') return false;
