@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "pilates-studio-1b64a"
-  }
+  },
+  "targets": {
+    "pilates-studio-1b64a": {
+      "hosting": {
+        "pilatesapp": [
+          "pilatesapp-2051c"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
