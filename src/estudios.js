@@ -7,6 +7,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase/config';
 import { generarSlugUnico } from './utils/slug';
+import { ETIQUETAS_POR_RUBRO, ETIQUETAS_DEFAULT } from './etiquetas';
 
 const estudiosCol = collection(db, 'estudios');
 
@@ -18,9 +19,6 @@ const miembroRef  = (id, uid) => doc(db, 'estudios', id, 'miembros', uid);
 const usuarioRef  = (uid) => doc(db, 'usuarios', uid);
 const slugRef     = (slug) => doc(db, 'slugs', slug);
 
-// ============================================================
-// HELPERS: Detectar errores de slug duplicado
-// ============================================================
 function esErrorSlugDuplicado(err) {
   return (
     err?.code === 'already-exists' ||
@@ -32,8 +30,12 @@ function esErrorSlugDuplicado(err) {
 // ============================================================
 // CREAR ESTUDIO SIN ADMIN (con reintentos)
 // ============================================================
-export async function crearEstudioSinAdmin({ nombre, creadoPor, registroAbierto = false }) {
+export async function crearEstudioSinAdmin({
+  nombre, creadoPor, rubro = 'pilates', registroAbierto = false
+}) {
   if (!nombre?.trim()) throw new Error('El nombre es obligatorio');
+
+  const etiquetas = ETIQUETAS_POR_RUBRO[rubro] || ETIQUETAS_DEFAULT;
 
   const configDefault = {
     tiposClase: ['Reformer', 'Mat', 'Cadillac', 'Chair'],
@@ -58,6 +60,8 @@ export async function crearEstudioSinAdmin({ nombre, creadoPor, registroAbierto 
     batch.set(nuevoRef, {
       nombre: nombre.trim(),
       slug,
+      rubro,
+      etiquetas,
       activo: true,
       plan: 'trial',
       planVencimiento: trialHasta,
@@ -94,13 +98,16 @@ export async function crearEstudioSinAdmin({ nombre, creadoPor, registroAbierto 
 }
 
 // ============================================================
-// CREAR ESTUDIO CON ADMIN (legacy, con reintentos)
+// CREAR ESTUDIO CON ADMIN (legacy)
 // ============================================================
 export async function crearEstudio({
-  nombre, adminUid, adminEmail, adminNombre, registroAbierto = false
+  nombre, rubro = 'pilates', etiquetas, adminUid, adminEmail, adminNombre,
+  registroAbierto = false
 }) {
   if (!nombre?.trim()) throw new Error('El nombre es obligatorio');
   if (!adminUid) throw new Error('Falta el admin');
+
+  const etiquetasFinales = etiquetas || ETIQUETAS_POR_RUBRO[rubro] || ETIQUETAS_DEFAULT;
 
   const configDefault = {
     tiposClase: ['Reformer', 'Mat', 'Cadillac', 'Chair'],
@@ -125,6 +132,8 @@ export async function crearEstudio({
     batch.set(nuevoRef, {
       nombre: nombre.trim(),
       slug,
+      rubro,
+      etiquetas: etiquetasFinales,
       activo: true,
       plan: 'trial',
       planVencimiento: trialHasta,
@@ -323,7 +332,7 @@ export async function sumarClasesMiembro(estudioId, uid, cantidad) {
 }
 
 // ============================================================
-// USUARIO GLOBAL (índice)
+// USUARIO GLOBAL
 // ============================================================
 export async function obtenerUsuarioGlobal(uid) {
   if (!uid) return null;

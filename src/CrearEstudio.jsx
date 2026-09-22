@@ -5,11 +5,13 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase/config';
 import { crearEstudio } from './estudios';
 import { Building2, ArrowRight, LogOut } from 'lucide-react';
+import { ETIQUETAS_POR_RUBRO, RUBROS_DISPONIBLES } from './etiquetas';
 
 export function CrearEstudio() {
   const [user, setUser] = useState(null);
   const [cargandoAuth, setCargandoAuth] = useState(true);
   const [nombre, setNombre] = useState('');
+  const [rubro, setRubro] = useState('pilates');
   const [registroAbierto, setRegistroAbierto] = useState(false);
   const [error, setError] = useState('');
   const [creando, setCreando] = useState(false);
@@ -40,6 +42,8 @@ export function CrearEstudio() {
     try {
       const { slug } = await crearEstudio({
         nombre,
+        rubro,
+        etiquetas: ETIQUETAS_POR_RUBRO[rubro] || ETIQUETAS_POR_RUBRO.pilates,
         adminUid: user.uid,
         adminEmail: user.email,
         adminNombre: user.displayName || user.email,
@@ -125,7 +129,26 @@ export function CrearEstudio() {
               </p>
             </div>
 
-            {/* 👇 Checkbox para el registro abierto */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                Tipo de negocio
+              </label>
+              <select
+                value={rubro}
+                onChange={(e) => setRubro(e.target.value)}
+                className="w-full border rounded-lg px-3 py-3 focus:outline-none focus:border-purple-500 text-base"
+              >
+                {RUBROS_DISPONIBLES.map(r => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-2">
+                Esto define cómo se llaman las cosas dentro del sistema (ej: clases vs turnos).
+              </p>
+            </div>
+
             <div className="bg-gray-50 border rounded-lg p-4">
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
