@@ -5,6 +5,7 @@ import {
   suscribirSlotsPorRango, reservarCama, cancelarCama,
   lunesDe, sumarDias, formatoISO, CalendarioCamas
 } from './agenda';
+import { getEtiquetas } from './etiquetas';
 
 export function Clases() {
   const { estudio, miembro, user, recargar } = useEstudio();
@@ -47,7 +48,7 @@ export function Clases() {
         miembro?.nombre || 'Alumno',
         miembro?.telefono || null
       );
-      setMsg(`✅ Cama ${numeroCama} reservada`);
+      setMsg(`✅ ${et.recurso} ${numeroCama} reservada`);
       recargar();
     } catch (e) { setMsg('⚠️ ' + e.message); }
   };
@@ -61,7 +62,7 @@ export function Clases() {
         miembro?.rol === 'admin' || miembro?.rol === 'instructor',
         estudio.limiteCancelacionHoras ?? 0
       );
-      setMsg(`✅ Reserva cancelada (cama ${numeroCama})`);
+      setMsg(`✅ Reserva cancelada (${et.recurso.toLowerCase()} ${numeroCama})`);
       recargar();
     } catch (e) { setMsg('⚠️ ' + e.message); }
   };
@@ -74,13 +75,17 @@ export function Clases() {
 
   if (!estudio) return <div className="p-8">Cargando estudio...</div>;
 
+  const et = getEtiquetas(estudio);
+
   return (
     <div className="max-w-[1400px] mx-auto p-4 md:p-6">
       <div className="flex justify-between items-center mb-4">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold">Agenda semanal</h1>
+          <h1 className="text-xl md:text-2xl font-bold">
+            Agenda de {et.citas.toLowerCase()}
+          </h1>
           <p className="text-sm text-gray-500">
-            {miembro?.nombre} · {miembro?.clasesRestantes ?? 0} clases disponibles
+            {miembro?.nombre} · {miembro?.clasesRestantes ?? 0} {et.citas.toLowerCase()} disponibles
           </p>
         </div>
         <button onClick={() => setSemana(new Date())}
@@ -101,6 +106,7 @@ export function Clases() {
         onCambiarSemana={cambiarSemana}
         estudioNombre={estudio?.nombre || ''}
         estudioId={estudio?.id || ''}
+        etiquetas={et}
       />
     </div>
   );

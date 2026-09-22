@@ -6,10 +6,8 @@ import { useEstudio } from './EstudioContext';
 import { listarMiembros, actualizarMiembro, eliminarMiembro } from './estudios';
 import { listarInvitaciones, invitarAlumno, crearInvitacion, enviarEmailInvitacion } from './invitaciones';
 import { ModalConfirm } from './ModalConfirm';
+import { getEtiquetas } from './etiquetas';
 
-// ============================================================
-// HELPERS DE TELÉFONO (mismos que en auth.jsx)
-// ============================================================
 function normalizarTelefono(tel) {
   if (!tel) return '';
   let limpio = tel.replace(/[^\d+]/g, '');
@@ -28,14 +26,11 @@ function formatearTelefono(tel) {
 }
 
 function telefonoValido(tel) {
-  if (!tel) return true; // vacío es válido (opcional)
+  if (!tel) return true;
   const limpio = tel.replace(/[^\d]/g, '');
   return limpio.length === 10 || (limpio.length === 13 && limpio.startsWith('549'));
 }
 
-// ============================================================
-// PÁGINA: ADMIN · ALUMNOS
-// ============================================================
 export function AdminAlumnos() {
   const { estudio, miembro: yo } = useEstudio();
   const [alumnos, setAlumnos] = useState([]);
@@ -45,13 +40,12 @@ export function AdminAlumnos() {
   const [msgError, setMsgError] = useState('');
   const [tab, setTab] = useState('alumnos');
   const [modalInvitar, setModalInvitar] = useState(false);
-
-  // 🆕 Estado para editar teléfono inline
-  const [editandoTelefono, setEditandoTelefono] = useState(null); // { uid, valor }
-
+  const [editandoTelefono, setEditandoTelefono] = useState(null);
   const [confirmData, setConfirmData] = useState(null);
   const [busqueda, setBusqueda] = useState('');
   const [filtroInv, setFiltroInv] = useState('todas');
+
+  const et = getEtiquetas(estudio);
 
   const cargar = async () => {
     if (!estudio) return;
@@ -82,9 +76,6 @@ export function AdminAlumnos() {
     return () => clearTimeout(t);
   }, [msg, msgError]);
 
-  // ============================================================
-  // 🆕 ACCIONES DE TELÉFONO
-  // ============================================================
   const empezarEdicionTelefono = (alumno) => {
     setEditandoTelefono({
       uid: alumno.uid,
@@ -98,17 +89,12 @@ export function AdminAlumnos() {
 
   const guardarTelefono = async () => {
     if (!editandoTelefono) return;
-
     const valor = editandoTelefono.valor.trim();
-
-    // Validar
     if (valor && !telefonoValido(valor)) {
       setMsgError('⚠️ Teléfono inválido. Ejemplo: +54 9 11 1234-5678');
       return;
     }
-
     const telNormalizado = valor ? normalizarTelefono(valor) : '';
-
     try {
       await actualizarMiembro(estudio.id, editandoTelefono.uid, {
         telefono: telNormalizado
@@ -121,9 +107,6 @@ export function AdminAlumnos() {
     }
   };
 
-  // ============================================================
-  // ACCIONES (con modal de confirmación)
-  // ============================================================
   const cambiarRol = (uid, nuevoRol) => {
     setConfirmData({
       titulo: 'Cambiar rol',
@@ -166,12 +149,12 @@ export function AdminAlumnos() {
   const sumarClases = async (alumno, cantidad) => {
     const nuevo = (alumno.clasesRestantes || 0) + cantidad;
     if (nuevo < 0) {
-      setMsgError('⚠️ No se puede tener clases negativas');
+      setMsgError(`⚠️ No se puede tener ${et.citas.toLowerCase()} negativas`);
       return;
     }
     try {
       await actualizarMiembro(estudio.id, alumno.uid, { clasesRestantes: nuevo });
-      setMsg(`✅ ${alumno.nombre}: ${nuevo} clases (${cantidad > 0 ? '+' : ''}${cantidad})`);
+      setMsg(`✅ ${alumno.nombre}: ${nuevo} ${et.citas.toLowerCase()} (${cantidad > 0 ? '+' : ''}${cantidad})`);
       cargar();
     } catch (e) {
       setMsgError('⚠️ ' + e.message);
@@ -283,22 +266,15 @@ export function AdminAlumnos() {
     return true;
   });
 
-  // ============================================================
-  // EXPORTAR ALUMNOS A CSV
-  // ============================================================
   const exportarCSV = () => {
     if (alumnosFiltrados.length === 0) {
-      setMsgError('⚠️ No hay alumnos para exportar');
+      setMsgError('⚠️ No hay miembros para exportar');
       return;
     }
 
     const columnas = [
-      'Nombre',
-      'Email',
-      'Teléfono',
-      'Rol',
-      'Clases restantes',
-      'Estado'
+      'Nombre', 'Email', 'Teléfono', 'Rol',
+      `${et.citas} restantes`, 'Estado'
     ];
 
     const escapar = (valor) => {
@@ -332,20 +308,20 @@ export function AdminAlumnos() {
     const link = document.createElement('a');
     const fecha = new Date().toISOString().slice(0, 10);
     link.href = url;
-    link.download = `alumnos-${estudio.slug}-${fecha}.csv`;
+    link.download = `${et.clientes.toLowerCase()}-${estudio.slug}-${fecha}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    setMsg(`✅ CSV descargado (${alumnosFiltrados.length} alumnos)`);
+    setMsg(`✅ CSV descargado (${alumnosFiltrados.length} ${et.clientes.toLowerCase()})`);
   };
 
   return (
     <div className="max-w-6xl mx-auto p-6">
       <div className="flex justify-between items-center mb-6 flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold">👥 Alumnos</h1>
+          <h1 className="text-2xl font-bold">👥 {et.clientes}</h1>
           <p className="text-sm text-gray-500">
             {estudio.nombre} · {alumnos.length} miembros
           </p>
@@ -361,7 +337,7 @@ export function AdminAlumnos() {
           </button>
           <button onClick={() => setModalInvitar(true)}
             className="text-sm px-4 py-2 rounded bg-purple-600 text-white hover:bg-purple-700">
-            + Invitar alumno
+            + Invitar {et.cliente}
           </button>
         </div>
       </div>
@@ -383,7 +359,7 @@ export function AdminAlumnos() {
           className={`pb-2 text-sm font-medium border-b-2 ${
             tab === 'alumnos' ? 'border-purple-600 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}>
-          Alumnos ({alumnosFiltrados.length})
+          {et.clientes} ({alumnosFiltrados.length})
         </button>
         <button
           onClick={() => setTab('invitaciones')}
@@ -394,13 +370,12 @@ export function AdminAlumnos() {
         </button>
       </div>
 
-      {/* TAB ALUMNOS */}
       {tab === 'alumnos' && (
         <>
           <div className="mb-4">
             <input
               type="text"
-              placeholder="🔍 Buscar por nombre, email o teléfono..."
+              placeholder={`🔍 Buscar por nombre, email o teléfono...`}
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               className="w-full max-w-md border rounded px-3 py-2 text-sm"
@@ -411,8 +386,8 @@ export function AdminAlumnos() {
           alumnosFiltrados.length === 0 ? (
             <div className="bg-white border rounded-lg p-8 text-center text-gray-500">
               {busqueda
-                ? 'No hay alumnos que coincidan con la búsqueda.'
-                : 'No hay alumnos todavía. Hacé clic en "+ Invitar alumno" para empezar.'}
+                ? `No hay ${et.clientes.toLowerCase()} que coincidan con la búsqueda.`
+                : `No hay ${et.clientes.toLowerCase()} todavía. Hacé clic en "+ Invitar ${et.cliente}" para empezar.`}
             </div>
           ) : (
             <div className="bg-white border rounded-lg overflow-hidden overflow-x-auto">
@@ -423,7 +398,7 @@ export function AdminAlumnos() {
                     <th className="px-4 py-3">Email</th>
                     <th className="px-4 py-3">Teléfono</th>
                     <th className="px-4 py-3">Rol</th>
-                    <th className="px-4 py-3">Clases</th>
+                    <th className="px-4 py-3">{et.citas}</th>
                     <th className="px-4 py-3">Estado</th>
                     <th className="px-4 py-3 text-right">Acciones</th>
                   </tr>
@@ -435,7 +410,6 @@ export function AdminAlumnos() {
                       <tr key={a.uid} className="text-sm">
                         <td className="px-4 py-3 font-medium">{a.nombre}</td>
                         <td className="px-4 py-3 text-gray-600 text-xs">{a.email}</td>
-                        {/* 🆕 CELDA DE TELÉFONO EDITABLE */}
                         <td className="px-4 py-3 text-gray-600 text-xs">
                           {editandoEste ? (
                             <div className="flex items-center gap-1">
@@ -454,57 +428,32 @@ export function AdminAlumnos() {
                                 autoFocus
                                 className="w-40 border rounded px-2 py-1 text-xs"
                               />
-                              <button
-                                onClick={guardarTelefono}
-                                className="text-green-600 hover:text-green-700 font-bold"
-                                title="Guardar"
-                              >
-                                ✓
-                              </button>
-                              <button
-                                onClick={cancelarEdicionTelefono}
-                                className="text-gray-400 hover:text-gray-600 font-bold"
-                                title="Cancelar"
-                              >
-                                ✕
-                              </button>
+                              <button onClick={guardarTelefono} className="text-green-600 hover:text-green-700 font-bold">✓</button>
+                              <button onClick={cancelarEdicionTelefono} className="text-gray-400 hover:text-gray-600 font-bold">✕</button>
                             </div>
                           ) : a.telefono ? (
                             <div className="flex items-center gap-2">
-                              <a
-                                href={`https://wa.me/${a.telefono.replace(/\D/g, '')}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-green-600 hover:underline"
-                                title="Abrir WhatsApp"
-                              >
+                              <a href={`https://wa.me/${a.telefono.replace(/\D/g, '')}`}
+                                target="_blank" rel="noopener noreferrer"
+                                className="text-green-600 hover:underline">
                                 {formatearTelefono(a.telefono)}
                               </a>
-                              <button
-                                onClick={() => empezarEdicionTelefono(a)}
-                                className="text-gray-400 hover:text-gray-600"
-                                title="Editar teléfono"
-                              >
-                                ✏️
-                              </button>
+                              <button onClick={() => empezarEdicionTelefono(a)}
+                                className="text-gray-400 hover:text-gray-600">✏️</button>
                             </div>
                           ) : (
-                            <button
-                              onClick={() => empezarEdicionTelefono(a)}
-                              className="text-xs text-purple-600 hover:underline"
-                            >
+                            <button onClick={() => empezarEdicionTelefono(a)}
+                              className="text-xs text-purple-600 hover:underline">
                               + Agregar teléfono
                             </button>
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <select
-                            value={a.rol}
+                          <select value={a.rol}
                             onChange={(e) => cambiarRol(a.uid, e.target.value)}
-                            className="text-xs border rounded px-2 py-1"
-                          >
-                            <option value="alumno">alumno</option>
-                            <option value="instructor">instructor</option>
+                            className="text-xs border rounded px-2 py-1">
+                            <option value="alumno">{et.cliente}</option>
+                            <option value="instructor">{et.profesional}</option>
                             <option value="admin">admin</option>
                           </select>
                         </td>
@@ -556,38 +505,18 @@ export function AdminAlumnos() {
         </>
       )}
 
-      {/* TAB INVITACIONES */}
       {tab === 'invitaciones' && (
         <>
           <div className="mb-4 flex gap-2 text-sm flex-wrap">
-            <button
-              onClick={() => setFiltroInv('todas')}
-              className={`px-3 py-1 rounded border ${
-                filtroInv === 'todas' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white hover:bg-gray-50'
-              }`}>
-              Todas ({invitaciones.length})
-            </button>
-            <button
-              onClick={() => setFiltroInv('pendientes')}
-              className={`px-3 py-1 rounded border ${
-                filtroInv === 'pendientes' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white hover:bg-gray-50'
-              }`}>
-              Pendientes
-            </button>
-            <button
-              onClick={() => setFiltroInv('aceptadas')}
-              className={`px-3 py-1 rounded border ${
-                filtroInv === 'aceptadas' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white hover:bg-gray-50'
-              }`}>
-              Aceptadas
-            </button>
-            <button
-              onClick={() => setFiltroInv('expiradas')}
-              className={`px-3 py-1 rounded border ${
-                filtroInv === 'expiradas' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white hover:bg-gray-50'
-              }`}>
-              Expiradas
-            </button>
+            {['todas', 'pendientes', 'aceptadas', 'expiradas'].map(f => (
+              <button key={f}
+                onClick={() => setFiltroInv(f)}
+                className={`px-3 py-1 rounded border capitalize ${
+                  filtroInv === f ? 'bg-purple-600 text-white border-purple-600' : 'bg-white hover:bg-gray-50'
+                }`}>
+                {f}
+              </button>
+            ))}
           </div>
 
           {cargando ? <p className="text-gray-500">Cargando...</p> :
@@ -603,7 +532,7 @@ export function AdminAlumnos() {
                     <th className="px-4 py-3">Nombre</th>
                     <th className="px-4 py-3">Email</th>
                     <th className="px-4 py-3">Teléfono</th>
-                    <th className="px-4 py-3">Clases</th>
+                    <th className="px-4 py-3">{et.citas}</th>
                     <th className="px-4 py-3">Estado</th>
                     <th className="px-4 py-3">Creada</th>
                     <th className="px-4 py-3 text-right">Acciones</th>
@@ -625,33 +554,21 @@ export function AdminAlumnos() {
                         <td className="px-4 py-3 text-center">{inv.clasesIniciales}</td>
                         <td className="px-4 py-3">
                           {inv.estado === 'aceptada' ? (
-                            <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-700">
-                              ✓ Aceptada
-                            </span>
+                            <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-700">✓ Aceptada</span>
                           ) : exp ? (
-                            <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600">
-                              Expirada
-                            </span>
+                            <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600">Expirada</span>
                           ) : (
-                            <span className="text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-700">
-                              Pendiente
-                            </span>
+                            <span className="text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-700">Pendiente</span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-xs text-gray-500">{fechaCreacion}</td>
                         <td className="px-4 py-3 text-right space-x-2">
                           {inv.estado !== 'aceptada' && (
                             <>
-                              <button
-                                onClick={() => copiarLinkInvitacion(inv.id || inv.token)}
-                                className="text-xs text-gray-600 hover:underline">
-                                Copiar link
-                              </button>
-                              <button
-                                onClick={() => reenviarInvitacion(inv)}
-                                className="text-xs text-purple-600 hover:underline">
-                                Reenviar
-                              </button>
+                              <button onClick={() => copiarLinkInvitacion(inv.id || inv.token)}
+                                className="text-xs text-gray-600 hover:underline">Copiar link</button>
+                              <button onClick={() => reenviarInvitacion(inv)}
+                                className="text-xs text-purple-600 hover:underline">Reenviar</button>
                             </>
                           )}
                         </td>
@@ -669,8 +586,9 @@ export function AdminAlumnos() {
         <ModalInvitar
           estudio={estudio}
           adminNombre={yo?.nombre}
+          etiquetas={et}
           onCerrar={() => setModalInvitar(false)}
-          onInvitado={() => { setModalInvitar(false); cargar(); setMsg('✅ Invitación enviada'); }}
+          onInvitado={() => { setModalInvitar(false); cargar(); setMsg(`✅ Invitación enviada`); }}
         />
       )}
 
@@ -687,10 +605,7 @@ export function AdminAlumnos() {
   );
 }
 
-// ============================================================
-// MODAL: INVITAR ALUMNO
-// ============================================================
-function ModalInvitar({ estudio, adminNombre, onCerrar, onInvitado }) {
+function ModalInvitar({ estudio, adminNombre, etiquetas, onCerrar, onInvitado }) {
   const [email, setEmail] = useState('');
   const [nombre, setNombre] = useState('');
   const [telefono, setTelefono] = useState('');
@@ -703,18 +618,14 @@ function ModalInvitar({ estudio, adminNombre, onCerrar, onInvitado }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
     if (!validarEmail(email)) {
       setError('El email no tiene un formato válido');
       return;
     }
-
     setEnviando(true);
     try {
       await invitarAlumno(estudio, {
-        email,
-        nombre,
-        telefono,
+        email, nombre, telefono,
         clasesIniciales: Number(clases),
         adminNombre
       });
@@ -729,64 +640,48 @@ function ModalInvitar({ estudio, adminNombre, onCerrar, onInvitado }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <form onSubmit={handleSubmit} className="bg-white rounded-lg p-6 w-full max-w-md space-y-4">
-        <h3 className="text-lg font-bold">Invitar alumno</h3>
+        <h3 className="text-lg font-bold">Invitar {etiquetas.cliente}</h3>
         <p className="text-sm text-gray-500">
           Le vamos a enviar un email a <strong>{estudio.nombre}</strong> con un link para unirse.
         </p>
 
-        {error && (
-          <p className="text-red-500 text-sm bg-red-50 p-2 rounded">{error}</p>
-        )}
+        {error && <p className="text-red-500 text-sm bg-red-50 p-2 rounded">{error}</p>}
 
         <div>
           <label className="block text-xs text-gray-600 mb-1 font-medium">Email</label>
-          <input
-            type="email"
-            value={email}
+          <input type="email" value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="alumno@email.com"
-            required
-            className="w-full border rounded px-3 py-2"
-          />
+            placeholder="alumno@email.com" required
+            className="w-full border rounded px-3 py-2" />
         </div>
 
         <div>
           <label className="block text-xs text-gray-600 mb-1 font-medium">Nombre</label>
-          <input
-            value={nombre}
+          <input value={nombre}
             onChange={(e) => setNombre(e.target.value)}
             placeholder="Juan Pérez (opcional)"
-            className="w-full border rounded px-3 py-2"
-          />
+            className="w-full border rounded px-3 py-2" />
         </div>
 
         <div>
           <label className="block text-xs text-gray-600 mb-1 font-medium">
             Teléfono <span className="text-gray-400 font-normal">(opcional)</span>
           </label>
-          <input
-            type="tel"
-            value={telefono}
+          <input type="tel" value={telefono}
             onChange={(e) => setTelefono(e.target.value)}
             placeholder="+54 9 11 1234-5678"
-            className="w-full border rounded px-3 py-2"
-          />
+            className="w-full border rounded px-3 py-2" />
         </div>
 
         <div>
           <label className="block text-xs text-gray-600 mb-1 font-medium">
-            Clases iniciales
+            {etiquetas.citas} iniciales
           </label>
-          <input
-            type="number"
-            min="0"
-            max="200"
-            value={clases}
+          <input type="number" min="0" max="200" value={clases}
             onChange={(e) => setClases(e.target.value)}
-            className="w-full border rounded px-3 py-2"
-          />
+            className="w-full border rounded px-3 py-2" />
           <p className="text-xs text-gray-400 mt-1">
-            Podés cambiarlo después desde la lista de alumnos.
+            Podés cambiarlo después desde la lista de {etiquetas.clientes.toLowerCase()}.
           </p>
         </div>
 

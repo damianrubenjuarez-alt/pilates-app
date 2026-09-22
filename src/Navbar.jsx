@@ -5,6 +5,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from './firebase/config';
 import { useEstudio } from './EstudioContext';
 import { planVigente } from './estudios';
+import { getEtiquetas } from './etiquetas';
 import { WhatsAppButton } from './components/WhatsAppButton';
 import { Copy, Check } from 'lucide-react';
 
@@ -15,6 +16,8 @@ export function Navbar() {
   const [copiado, setCopiado] = useState(false);
 
   if (!estudio || !user) return null;
+
+  const et = getEtiquetas(estudio);
 
   const logout = async () => {
     await signOut(auth);
@@ -115,7 +118,7 @@ export function Navbar() {
           <div className="flex gap-2 items-center flex-shrink-0">
             {esAlumno && (
               <span className="text-xs md:text-sm text-gray-600 hidden sm:inline">
-                {miembro.clasesRestantes ?? 0} clases
+                {miembro.clasesRestantes ?? 0} {et.citas.toLowerCase()}
               </span>
             )}
 
@@ -126,12 +129,12 @@ export function Navbar() {
             )}
             {!esAdmin && esInstructor && (
               <span className="text-[10px] md:text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded whitespace-nowrap">
-                Instructor
+                {et.profesional}
               </span>
             )}
             {esAlumno && (
               <span className="text-[10px] md:text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded whitespace-nowrap">
-                Alumno
+                {et.cliente}
               </span>
             )}
 
@@ -142,13 +145,13 @@ export function Navbar() {
         </div>
 
         <div className="px-3 md:px-6 pb-2 md:pb-3 flex flex-wrap gap-x-3 md:gap-x-4 gap-y-1.5 md:gap-y-2 items-center border-t border-gray-100 pt-2 md:pt-3">
-          <Link to={`/${slug}/clases`} className="text-xs md:text-sm hover:underline">
-            Clases
+          <Link to={`/${slug}/clases`} className="text-xs md:text-sm hover:underline capitalize">
+            {et.citas}
           </Link>
 
           {esAlumno && (
             <Link to={`/${slug}/mis-reservas`} className="text-xs md:text-sm hover:underline">
-              Mis reservas
+              Mis {et.citas.toLowerCase()}
             </Link>
           )}
 
@@ -165,19 +168,20 @@ export function Navbar() {
           {esAdmin && (
             <Link
               to={`/${slug}/admin/alumnos`}
-              className="text-xs md:text-sm font-semibold hover:underline"
+              className="text-xs md:text-sm font-semibold hover:underline capitalize"
               style={{ color }}
             >
-              Alumnos
+              {et.clientes}
             </Link>
           )}
+
           {esAdmin && (
             <Link
               to={`/${slug}/admin/caja`}
               className="text-xs md:text-sm font-semibold hover:underline"
               style={{ color }}
             >
-            💰 Caja
+              💰 Caja
             </Link>
           )}
 
@@ -213,13 +217,10 @@ export function Navbar() {
         </div>
       </nav>
 
-      {/* ============================================================ */}
-      {/* BOTÓN FLOTANTE DE WHATSAPP CON AGENTE IA */}
-      {/* ============================================================ */}
       {estudio && (
-        <WhatsAppButton 
-          negocioId={estudio.slug} 
-          nombre={estudio.nombre} 
+        <WhatsAppButton
+          negocioId={estudio.slug}
+          nombre={estudio.nombre}
         />
       )}
     </>
