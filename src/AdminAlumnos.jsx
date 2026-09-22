@@ -5,6 +5,7 @@ import { auth } from './firebase/config';
 import { useEstudio } from './EstudioContext';
 import { listarMiembros, actualizarMiembro, eliminarMiembro } from './estudios';
 import { listarInvitaciones, invitarAlumno, crearInvitacion, enviarEmailInvitacion } from './invitaciones';
+import { registrarMovimiento } from './caja';
 import { ModalConfirm } from './ModalConfirm';
 import { getEtiquetas } from './etiquetas';
 
@@ -44,6 +45,7 @@ export function AdminAlumnos() {
   const [confirmData, setConfirmData] = useState(null);
   const [busqueda, setBusqueda] = useState('');
   const [filtroInv, setFiltroInv] = useState('todas');
+  const [modalCobro, setModalCobro] = useState(null);
 
   const et = getEtiquetas(estudio);
 
@@ -77,10 +79,7 @@ export function AdminAlumnos() {
   }, [msg, msgError]);
 
   const empezarEdicionTelefono = (alumno) => {
-    setEditandoTelefono({
-      uid: alumno.uid,
-      valor: alumno.telefono || ''
-    });
+    setEditandoTelefono({ uid: alumno.uid, valor: alumno.telefono || '' });
   };
 
   const cancelarEdicionTelefono = () => {
@@ -96,9 +95,7 @@ export function AdminAlumnos() {
     }
     const telNormalizado = valor ? normalizarTelefono(valor) : '';
     try {
-      await actualizarMiembro(estudio.id, editandoTelefono.uid, {
-        telefono: telNormalizado
-      });
+      await actualizarMiembro(estudio.id, editandoTelefono.uid, { telefono: telNormalizado });
       setMsg(`✅ Teléfono guardado: ${formatearTelefono(telNormalizado) || 'sin teléfono'}`);
       setEditandoTelefono(null);
       cargar();
@@ -146,15 +143,45 @@ export function AdminAlumnos() {
     });
   };
 
-  const sumarClases = async (alumno, cantidad) => {
+  const sumarClases = (alumno, cantidad) => {
     const nuevo = (alumno.clasesRestantes || 0) + cantidad;
+
     if (nuevo < 0) {
       setMsgError(`⚠️ No se puede tener ${et.citas.toLowerCase()} negativas`);
       return;
     }
+
+    if (cantidad <= 0) {
+      ejecutarSumaClases(alumno, cantidad);
+      return;
+    }
+
+    setModalCobro({ alumno, cantidad, nuevo });
+  };
+
+  const ejecutarSumaClases = async (alumno, cantidad, datosCobro = null) => {
     try {
-      await actualizarMiembro(estudio.id, alumno.uid, { clasesRestantes: nuevo });
-      setMsg(`✅ ${alumno.nombre}: ${nuevo} ${et.citas.toLowerCase()} (${cantidad > 0 ? '+' : ''}${cantidad})`);
+      await actualizarMiembro(estudio.id, alumno.uid, {
+        clasesRestantes: (alumno.clasesRestantes || 0) + cantidad
+      });
+
+      if (datosCobro && cantidad > 0) {
+        await registrarMovimiento(estudio.id, {
+          tipo: 'ingreso',
+          monto: Number(datosCobro.monto),
+          metodo: datosCobro.metodo,
+          categoria: datosCobro.categoria,
+          concepto: datosCobro.concepto || `+${cantidad} ${et.citas.toLowerCase()} a ${alumno.nombre}`,
+          alumnoUid: alumno.uid,
+          alumnoNombre: alumno.nombre,
+          creadoPor: yo?.uid
+        });
+        setMsg(`✅ ${alumno.nombre}: +${cantidad} ${et.citas.toLowerCase()} · 💰 $${Number(datosCobro.monto).toLocaleString('es-AR')} registrado`);
+      } else {
+        setMsg(`✅ ${alumno.nombre}: ${(alumno.clasesRestantes || 0) + cantidad} ${et.citas.toLowerCase()} (${cantidad > 0 ? '+' : ''}${cantidad})`);
+      }
+
+      setModalCobro(null);
       cargar();
     } catch (e) {
       setMsgError('⚠️ ' + e.message);
@@ -271,12 +298,7 @@ export function AdminAlumnos() {
       setMsgError('⚠️ No hay miembros para exportar');
       return;
     }
-
-    const columnas = [
-      'Nombre', 'Email', 'Teléfono', 'Rol',
-      `${et.citas} restantes`, 'Estado'
-    ];
-
+    const columnas = ['Nombre', 'Email', 'Teléfono', 'Rol', `${et.citas} restantes`, 'Estado'];
     const escapar = (valor) => {
       if (valor === null || valor === undefined) return '';
       const string = String(valor);
@@ -285,25 +307,13 @@ export function AdminAlumnos() {
       }
       return string;
     };
-
     const filas = alumnosFiltrados.map(a => [
-      escapar(a.nombre || ''),
-      escapar(a.email || ''),
-      escapar(a.telefono || ''),
-      escapar(a.rol || ''),
-      escapar(a.clasesRestantes ?? 0),
+      escapar(a.nombre || ''), escapar(a.email || ''), escapar(a.telefono || ''),
+      escapar(a.rol || ''), escapar(a.clasesRestantes ?? 0),
       escapar(a.activo === false ? 'Inactivo' : 'Activo')
     ]);
-
-    const contenido = [
-      columnas.join(','),
-      ...filas.map(f => f.join(','))
-    ].join('\n');
-
-    const blob = new Blob(['\uFEFF' + contenido], {
-      type: 'text/csv;charset=utf-8;'
-    });
-
+    const contenido = [columnas.join(','), ...filas.map(f => f.join(','))].join('\n');
+    const blob = new Blob(['\uFEFF' + contenido], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     const fecha = new Date().toISOString().slice(0, 10);
@@ -313,7 +323,6 @@ export function AdminAlumnos() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-
     setMsg(`✅ CSV descargado (${alumnosFiltrados.length} ${et.clientes.toLowerCase()})`);
   };
 
@@ -375,7 +384,7 @@ export function AdminAlumnos() {
           <div className="mb-4">
             <input
               type="text"
-              placeholder={`🔍 Buscar por nombre, email o teléfono...`}
+              placeholder="🔍 Buscar por nombre, email o teléfono..."
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               className="w-full max-w-md border rounded px-3 py-2 text-sm"
@@ -592,6 +601,17 @@ export function AdminAlumnos() {
         />
       )}
 
+      {modalCobro && (
+        <ModalCobro
+          alumno={modalCobro.alumno}
+          cantidad={modalCobro.cantidad}
+          etiquetas={et}
+          onCerrar={() => setModalCobro(null)}
+          onSoloClases={() => ejecutarSumaClases(modalCobro.alumno, modalCobro.cantidad, null)}
+          onCobrar={(datos) => ejecutarSumaClases(modalCobro.alumno, modalCobro.cantidad, datos)}
+        />
+      )}
+
       <ModalConfirm
         abierto={!!confirmData}
         titulo={confirmData?.titulo}
@@ -605,6 +625,9 @@ export function AdminAlumnos() {
   );
 }
 
+// ============================================================
+// MODAL: INVITAR ALUMNO
+// ============================================================
 function ModalInvitar({ estudio, adminNombre, etiquetas, onCerrar, onInvitado }) {
   const [email, setEmail] = useState('');
   const [nombre, setNombre] = useState('');
@@ -693,6 +716,142 @@ function ModalInvitar({ estudio, adminNombre, etiquetas, onCerrar, onInvitado })
           <button type="submit" disabled={enviando}
             className="px-4 py-2 rounded bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50">
             {enviando ? 'Enviando email...' : 'Enviar invitación'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// ============================================================
+// MODAL: COBRO AL SUMAR CLASES
+// ============================================================
+function ModalCobro({ alumno, cantidad, etiquetas, onCerrar, onSoloClases, onCobrar }) {
+  const [monto, setMonto] = useState('');
+  const [metodo, setMetodo] = useState('efectivo');
+  const [categoria, setCategoria] = useState('pack');
+  const [concepto, setConcepto] = useState(`+${cantidad} ${etiquetas.citas.toLowerCase()} a ${alumno.nombre}`);
+  const [error, setError] = useState('');
+
+  const handleCobrar = (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (!monto || Number(monto) <= 0) {
+      setError('Ingresá un monto válido');
+      return;
+    }
+
+    onCobrar({
+      monto: Number(monto),
+      metodo,
+      categoria,
+      concepto
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <form onSubmit={handleCobrar} className="bg-white rounded-lg p-6 w-full max-w-md space-y-4">
+        <div>
+          <h3 className="text-lg font-bold">💰 Registrar pago</h3>
+          <p className="text-sm text-gray-500 mt-1">
+            Vas a agregar <strong>{cantidad} {etiquetas.citas.toLowerCase()}</strong> a <strong>{alumno.nombre}</strong>.
+          </p>
+        </div>
+
+        {error && <p className="text-red-500 text-sm bg-red-50 p-2 rounded">{error}</p>}
+
+        <div>
+          <label className="block text-xs text-gray-600 mb-1 font-medium">
+            Monto cobrado
+          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+            <input
+              type="number"
+              value={monto}
+              onChange={(e) => setMonto(e.target.value)}
+              placeholder="0"
+              min="1"
+              autoFocus
+              required
+              className="w-full border rounded px-3 py-2 pl-7 text-lg font-mono"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs text-gray-600 mb-1 font-medium">Método</label>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { value: 'efectivo', label: '💵 Efectivo' },
+              { value: 'transferencia', label: '🏦 Transferencia' },
+              { value: 'mercadopago', label: '💳 Mercado Pago' },
+              { value: 'otro', label: '📎 Otro' }
+            ].map(m => (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => setMetodo(m.value)}
+                className={`py-2 rounded border text-sm transition ${
+                  metodo === m.value
+                    ? 'bg-purple-600 text-white border-purple-600'
+                    : 'bg-white hover:bg-gray-50'
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs text-gray-600 mb-1 font-medium">Categoría</label>
+          <select
+            value={categoria}
+            onChange={(e) => setCategoria(e.target.value)}
+            className="w-full border rounded px-3 py-2"
+          >
+            <option value="pack">Pack de {etiquetas.citas.toLowerCase()}</option>
+            <option value="clase">{etiquetas.cita} individual</option>
+            <option value="suscripcion">Suscripción</option>
+            <option value="producto">Producto</option>
+            <option value="otro">Otro</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs text-gray-600 mb-1 font-medium">
+            Concepto <span className="text-gray-400 font-normal">(opcional)</span>
+          </label>
+          <input
+            value={concepto}
+            onChange={(e) => setConcepto(e.target.value)}
+            className="w-full border rounded px-3 py-2 text-sm"
+          />
+        </div>
+
+        <div className="flex flex-col gap-2 pt-2">
+          <button
+            type="submit"
+            className="w-full py-3 rounded bg-green-600 text-white hover:bg-green-700 font-medium"
+          >
+            💰 Cobrar y agregar {cantidad} {etiquetas.citas.toLowerCase()}
+          </button>
+          <button
+            type="button"
+            onClick={onSoloClases}
+            className="w-full py-2 rounded border text-gray-600 hover:bg-gray-50 text-sm"
+          >
+            Solo agregar {cantidad} {etiquetas.citas.toLowerCase()} (sin cobro)
+          </button>
+          <button
+            type="button"
+            onClick={onCerrar}
+            className="w-full py-2 text-sm text-gray-500 hover:text-gray-700"
+          >
+            Cancelar
           </button>
         </div>
       </form>
