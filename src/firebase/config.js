@@ -2,6 +2,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { initializeFirestore } from 'firebase/firestore';
+import { getFunctions } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDwRppbhveGZTiM0gKEpmZaMlDIRTZfETU",
@@ -23,3 +24,7 @@ export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
   useFetchStreams: false
 });
+
+// ⚠️ IMPORTANTE: especificar la región de las Cloud Functions
+// Todas nuestras funciones están en southamerica-east1
+export const functions = getFunctions(app, 'southamerica-east1');

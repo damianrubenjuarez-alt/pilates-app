@@ -3,8 +3,8 @@ import {
   collection, doc, addDoc, getDocs, deleteDoc, updateDoc,
   query, where, orderBy, serverTimestamp, getDoc
 } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { db } from './firebase/config';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from './firebase/config';
 
 const listaCol = (estudioId, slotId) =>
   collection(db, 'estudios', estudioId, 'slots', slotId, 'listaEspera');
@@ -17,7 +17,6 @@ export async function anotarseEnLista(estudioId, slotId, {
 }) {
   if (!uid || !nombre) throw new Error('Faltan datos del alumno');
 
-  // Verificar que no esté ya anotado
   const q = query(listaCol(estudioId, slotId), where('uid', '==', uid));
   const snap = await getDocs(q);
   if (!snap.empty) {
@@ -78,7 +77,6 @@ export async function contarEnLista(estudioId, slotId) {
  */
 export async function notificarListaEspera(estudioId, slotId) {
   try {
-    const functions = getFunctions();
     const notificar = httpsCallable(functions, 'notificarListaEspera');
     const result = await notificar({ estudioId, slotId });
     return result.data;

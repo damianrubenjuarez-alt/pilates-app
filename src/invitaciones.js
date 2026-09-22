@@ -3,8 +3,8 @@ import {
   collection, doc, getDoc, getDocs, setDoc, updateDoc,
   Timestamp, serverTimestamp
 } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { db } from './firebase/config';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from './firebase/config';
 
 // ============================================================
 // CREAR INVITACIÓN
@@ -51,7 +51,6 @@ export async function enviarEmailInvitacion({
   token, email, nombre, estudioNombre, estudioSlug, adminNombre
 }) {
   try {
-    const functions = getFunctions();
     const enviar = httpsCallable(functions, 'enviarInvitacion');
     const result = await enviar({
       token,

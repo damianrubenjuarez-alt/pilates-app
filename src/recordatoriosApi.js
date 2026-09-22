@@ -1,7 +1,7 @@
 // src/recordatoriosApi.js
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { db } from './firebase/config';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from './firebase/config';
 
 // ============================================================
 // HELPERS DE FECHA
@@ -30,7 +30,7 @@ export function formatoFechaLinda(isoString) {
 }
 
 // ============================================================
-// OBTENER RESERVAS DE UN DÍA ESPECÍFICO
+// OBTENER RESERVAS DE UN DÍA
 // ============================================================
 export async function obtenerReservasDelDia(estudioId, fechaISO) {
   const slotsRef = collection(db, 'estudios', estudioId, 'slots');
@@ -64,7 +64,7 @@ export async function obtenerReservasDelDia(estudioId, fechaISO) {
 }
 
 // ============================================================
-// OBTENER INFO DE LOS ALUMNOS (email, nombre)
+// OBTENER INFO DE LOS ALUMNOS
 // ============================================================
 export async function obtenerInfoAlumnos(estudioId, uids) {
   if (!uids.length) return {};
@@ -94,7 +94,6 @@ export async function enviarRecordatorio({
   email, nombre, estudioNombre, fecha, hora, instructor, tipo, cama
 }) {
   try {
-    const functions = getFunctions();
     const enviar = httpsCallable(functions, 'enviarRecordatorioManual');
     const result = await enviar({
       email,
@@ -162,7 +161,7 @@ export async function enviarRecordatoriosDelDia(estudio, fechaISO, onProgreso) {
       onProgreso({ actual: i + 1, total: reservas.length, enviados, errores });
     }
 
-    // Pausa entre envíos (evita saturar Resend)
+    // Pausa entre envíos
     await new Promise(resolve => setTimeout(resolve, 300));
   }
 
