@@ -18,6 +18,7 @@ const MisReservasLazy = lazy(() => import('./MisReservas').then(m => ({ default:
 const SuperAdminLazy = lazy(() => import('./SuperAdmin').then(m => ({ default: m.SuperAdmin })));
 const AdminAlumnosLazy = lazy(() => import('./AdminAlumnos').then(m => ({ default: m.AdminAlumnos })));
 const AdminCajaLazy = lazy(() => import('./AdminCaja').then(m => ({ default: m.AdminCaja })));
+const AdminAgenteLazy = lazy(() => import('./AdminAgente').then(m => ({ default: m.AdminAgente })));
 const AceptarInvitacionLazy = lazy(() => import('./AceptarInvitacion').then(m => ({ default: m.AceptarInvitacion })));
 const RegistroAdminLazy = lazy(() => import('./RegistroAdmin').then(m => ({ default: m.RegistroAdmin })));
 const LoginAdminLazy = lazy(() => import('./LoginAdmin').then(m => ({ default: m.LoginAdmin })));
@@ -166,7 +167,13 @@ export default function App() {
               </Suspense>
             </RutaProtegida>
           } />
-          
+          <Route path="admin/agente" element={
+            <RutaProtegida soloAdmin>
+              <Suspense fallback={<CargandoPagina />}>
+                <AdminAgenteLazy />
+              </Suspense>
+            </RutaProtegida>
+          } />    
           <Route path="admin/estadisticas" element={
             <RutaProtegida soloAdmin>
               <Suspense fallback={<CargandoPagina />}>
